@@ -75,6 +75,7 @@ export function OrderForm({
           <input
             className="input"
             value={price}
+            type="number"
             onChange={(e) => setPrice(e.target.value)}
             inputMode="decimal"
           />
@@ -84,6 +85,7 @@ export function OrderForm({
           <input
             className="input"
             value={qty}
+            type="number"
             onChange={(e) => setQty(e.target.value)}
             inputMode="decimal"
           />
@@ -173,6 +175,7 @@ export function OrderFormControlled({
           <input
             className="input"
             value={price}
+            type="number"
             onChange={(e) => setPrice(e.target.value)}
           />
         </div>
@@ -181,6 +184,7 @@ export function OrderFormControlled({
           <input
             className="input"
             value={qty}
+            type="number"
             onChange={(e) => setQty(e.target.value)}
           />
         </div>
