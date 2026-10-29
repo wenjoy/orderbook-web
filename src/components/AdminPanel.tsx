@@ -30,7 +30,7 @@ function ResultBox({ r }: { r: OnchainResult | null }) {
 
 export function AdminPanel({ wallet, showToast }: Props) {
   const [pair, setPair] = useState<MarketPair>(DEFAULT_MARKET);
-  const [market, setMarket] = useState("");
+  const [market, setMarket] = useState("DkLEtRq75U4ZngaCje24DZCVNQgC6pzLiyHvhf7uH1br");
   const [owner, setOwner] = useState(wallet ?? "");
   const [amount, setAmount] = useState("1000");
   const [isBase, setIsBase] = useState(false);
