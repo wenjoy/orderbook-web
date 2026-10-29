@@ -117,6 +117,8 @@ export function AdminPanel({ wallet, showToast }: Props) {
                   api.initializeMarket({
                     base_mint: pair.baseMint,
                     quote_mint: pair.quoteMint,
+                    authority: "69ouCtDdqt7srmncBTgwbfy9yQMGCEuFPNGUFpPwWRKM",
+                    // authority: "Ax81KAFh4tZAqoKLGiebbBMSxEzGnrfXZL9kGCWwwaqJ",
                     submit,
                   }),
                 "InitMarket"
