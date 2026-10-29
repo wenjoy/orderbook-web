@@ -98,8 +98,6 @@ export function useBalances(owner: string | null) {
   useEffect(() => {
     void refresh();
     if (!owner) return;
-    const t = window.setInterval(() => void refresh(), 12_000);
-    return () => window.clearInterval(t);
   }, [owner, refresh]);
 
   return { ...state, refresh };

@@ -65,8 +65,6 @@ export default function App() {
 
   useEffect(() => {
     void refresh();
-    const t = window.setInterval(() => void refresh(), 15000);
-    return () => window.clearInterval(t);
   }, [refresh]);
 
   const onWs = useCallback((ev: WsEvent) => {
