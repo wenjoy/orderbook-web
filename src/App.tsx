@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import { Header } from "./components/Header";
@@ -7,7 +8,11 @@ import { Trades } from "./components/Trades";
 import { OpenOrders } from "./components/OpenOrders";
 import { Settlements } from "./components/Settlements";
 import { DepthChart } from "./components/DepthChart";
+import { AdminPanel } from "./components/AdminPanel";
+import { BalancesPanel } from "./components/Balances";
 import { useWebSocket } from "./hooks/useWebSocket";
+import { useWallet } from "./hooks/useWallet";
+import { useBalances } from "./hooks/useBalances";
 import type {
   DepthLevel,
   LocalOrder,
@@ -17,19 +22,12 @@ import type {
   WsEvent,
 } from "./types";
 
-declare global {
-  interface Window {
-    solana?: {
-      isPhantom?: boolean;
-      connect: () => Promise<{ publicKey: { toString: () => string } }>;
-      publicKey?: { toString: () => string };
-    };
-  }
-}
+type Tab = "trade" | "admin";
 
 export default function App() {
-  const [user, setUser] = useState("alice");
-  const [phantom, setPhantom] = useState(false);
+  const wallet = useWallet();
+  const balances = useBalances(wallet.pubkey);
+  const [tab, setTab] = useState<Tab>("trade");
   const [apiOk, setApiOk] = useState<boolean | null>(null);
 
   const [bids, setBids] = useState<DepthLevel[]>([]);
@@ -68,7 +66,7 @@ export default function App() {
   useEffect(() => {
     void refresh();
     const t = window.setInterval(() => void refresh(), 15000);
-    return () => clearInterval(t);
+    return () => window.clearInterval(t);
   }, [refresh]);
 
   const onWs = useCallback((ev: WsEvent) => {
@@ -108,40 +106,27 @@ export default function App() {
             };
             return copy;
           }
-          // will appear after refresh / place response
           return prev;
         });
-        void api.settlements(30).then(setSettlements).catch(() => {});
+        void api.settlements(30).then(setSettlements).catch(() => { });
         break;
     }
   }, []);
 
   const wsConnected = useWebSocket(onWs);
 
-  const connectPhantom = async () => {
-    const provider = window.solana;
-    if (!provider?.isPhantom) {
-      showToast("Phantom not found — paste pubkey manually");
-      return;
-    }
-    try {
-      const res = await provider.connect();
-      const pk = res.publicKey.toString();
-      setUser(pk);
-      setPhantom(true);
-      showToast(`Connected ${pk.slice(0, 4)}…${pk.slice(-4)}`);
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "Phantom connect failed");
-    }
-  };
-
   const placeOrder = async (p: {
     side: Side;
     price: number;
     quantity: number;
   }) => {
+    if (!wallet.pubkey) {
+      showToast("Connect wallet to trade");
+      throw new Error("Connect wallet to trade");
+    }
     setBusy(true);
     try {
+      const user = wallet.pubkey;
       const res = await api.placeOrder({ ...p, user });
       if (res.order_id != null && res.remaining != null && res.remaining > 0) {
         setOrders((prev) => [
@@ -162,85 +147,112 @@ export default function App() {
       if (res.settlements?.length) {
         setSettlements((prev) => {
           const ids = new Set(prev.map((j) => j.id));
-          const merged = [...res.settlements.filter((j) => !ids.has(j.id)), ...prev];
+          const merged = [
+            ...res.settlements.filter((j) => !ids.has(j.id)),
+            ...prev,
+          ];
           return merged.slice(0, 50);
         });
       }
       await refresh();
+      void balances.refresh();
     } finally {
       setBusy(false);
     }
   };
 
   const cancelOrder = async (id: number) => {
-    try {
-      await api.cancelOrder(id);
-      setOrders((prev) => prev.filter((o) => o.id !== id));
-      showToast(`Cancelled #${id}`);
-      await refresh();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "Cancel failed");
-    }
-  };
-
-  const onPriceClick = (p: number, s: Side) => {
-    setPrice(String(p));
-    // click ask to buy at that price, click bid to sell
-    setSide(s === "Ask" ? "Bid" : "Ask");
+    await api.cancelOrder(id);
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    await refresh();
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="min-h-screen bg-surface-0 text-gray-100">
       <Header
-        user={user}
-        onUserChange={setUser}
+        tab={tab}
+        onTab={setTab}
         connected={wsConnected}
         apiOk={apiOk}
-        onConnectPhantom={connectPhantom}
-        phantomConnected={phantom}
+        wallet={wallet.pubkey}
+        walletConnecting={wallet.connecting}
+        hasPhantom={wallet.hasPhantom}
+        onConnect={() => void wallet.connect()}
+        onDisconnect={() => void wallet.disconnect()}
       />
 
-      <main className="mx-auto grid w-full max-w-[1400px] flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-12">
-        {/* Left: orderbook + depth */}
-        <section className="flex flex-col gap-3 lg:col-span-4">
-          <div className="min-h-[420px] flex-1">
-            <Orderbook bids={bids} asks={asks} onPriceClick={onPriceClick} />
-          </div>
-          <DepthChart bids={bids} asks={asks} />
-        </section>
-
-        {/* Center: form + open orders */}
-        <section className="flex flex-col gap-3 lg:col-span-4">
-          <OrderFormControlled
-            user={user}
-            price={price}
-            setPrice={setPrice}
-            side={side}
-            setSide={setSide}
-            busy={busy}
-            onSubmit={placeOrder}
-          />
-          <div className="min-h-[200px] flex-1">
-            <OpenOrders orders={orders} user={user} onCancel={cancelOrder} />
-          </div>
-        </section>
-
-        {/* Right: trades + settlements */}
-        <section className="flex flex-col gap-3 lg:col-span-4">
-          <div className="min-h-[280px] flex-1">
-            <Trades trades={trades} />
-          </div>
-          <div className="min-h-[240px] flex-1">
-            <Settlements jobs={settlements} />
-          </div>
-        </section>
-      </main>
+      {wallet.error && (
+        <div className="bg-ask/20 px-4 py-2 text-center text-xs text-ask">
+          {wallet.error}
+        </div>
+      )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-md border border-surface-3 bg-surface-2 px-4 py-2 text-sm shadow-lg">
+        <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-surface-3 bg-surface-1 px-4 py-2 text-sm shadow-lg">
           {toast}
         </div>
       )}
+
+      <main className="mx-auto max-w-7xl p-4">
+        {tab === "admin" ? (
+          <AdminPanel wallet={wallet.pubkey} showToast={showToast} />
+        ) : !wallet.connected ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-24">
+            <p className="text-lg font-medium">Connect wallet to trade</p>
+            <p className="max-w-md text-center text-sm text-gray-500">
+              交易必须使用钱包公钥作为用户身份，不再支持 alice 等占位名。
+              连接后可查看 SOL / SPL 余额并下单。
+            </p>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={wallet.connecting || !wallet.hasPhantom}
+              onClick={() => void wallet.connect()}
+            >
+              {wallet.hasPhantom ? "Connect Phantom" : "Install Phantom first"}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost text-xs"
+              onClick={() => setTab("admin")}
+            >
+              或先打开 Admin 做链上准备
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-12">
+            <div className="space-y-4 lg:col-span-3">
+              <BalancesPanel balances={balances} />
+              <OrderFormControlled
+                user={wallet.pubkey}
+                price={price}
+                setPrice={setPrice}
+                side={side}
+                setSide={setSide}
+                busy={busy}
+                onSubmit={placeOrder}
+              />
+              <OpenOrders orders={orders} user={wallet.pubkey} onCancel={cancelOrder} />
+            </div>
+            <div className="space-y-4 lg:col-span-5">
+              <Orderbook
+                bids={bids}
+                asks={asks}
+                onPriceClick={(p, s) => {
+                  setPrice(String(p));
+                  setSide(s);
+                }}
+              />
+              <DepthChart bids={bids} asks={asks} />
+            </div>
+            <div className="space-y-4 lg:col-span-4">
+              <Trades trades={trades} />
+              <Settlements jobs={settlements} />
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
+
