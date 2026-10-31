@@ -63,6 +63,7 @@ export async function signAndSendInstruction(
     lastValidBlockHeight,
   }).add(ix);
 
+  let ready = true;
   // 假设 transaction 是你构建好的交易对象
   try {
     // 手动进行模拟，开启日志输出
@@ -74,11 +75,17 @@ export async function signAndSendInstruction(
       console.error("❌ 模拟失败，程序错误:", simulation.value.err);
       // 这里通常会打印出具体的 ProgramError，例如 custom program error: 0x...
       console.error("📜 程序日志:", simulation.value.logs);
+      ready = false;
     } else {
       console.log("✅ 模拟成功，交易逻辑本身没有问题");
     }
   } catch (simError) {
     console.error("模拟过程本身出错:", simError);
+    ready = false;
+  }
+
+  if (!ready) {
+    throw ("simuation error, stop submit")
   }
   const { signature } = await provider.signAndSendTransaction(tx);
   console.log("signature", signature);
