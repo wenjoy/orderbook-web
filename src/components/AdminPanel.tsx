@@ -1,89 +1,128 @@
-import { useEffect, useState } from "react";
-import { api, type OnchainResult } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import { DEFAULT_MARKET, MARKET_PAIRS, type MarketPair } from "../markets";
+import {
+  buildDeposit,
+  buildInitializeMarket,
+  buildInitializeVault,
+  buildWithdraw,
+  deriveMarket,
+  deriveUserVault,
+  programId,
+  type BuiltLocal,
+} from "../lib/settlementIx";
+import { signAndSendInstruction } from "../lib/walletSend";
 
 type Props = {
   wallet: string | null;
   showToast: (m: string) => void;
 };
 
-function ResultBox({ r }: { r: OnchainResult | null }) {
-  if (!r) return null;
-  return (
-    <pre className="mt-2 max-h-48 overflow-auto rounded bg-black/40 p-2 text-[10px] text-gray-400">
-      {JSON.stringify(
-        {
-          name: r.built.name,
-          submitted: r.submitted,
-          signature: r.signature,
-          error: r.error,
-          pdas: r.built.pdas,
-          accounts: r.built.accounts,
-          ix_data_hex: r.built.ix_data_hex,
-        },
-        null,
-        2
-      )}
-    </pre>
-  );
-}
-
+/** Admin：本地构造（web3.js v1 + Phantom） */
 export function AdminPanel({ wallet, showToast }: Props) {
   const [pair, setPair] = useState<MarketPair>(DEFAULT_MARKET);
-  const [market, setMarket] = useState("DkLEtRq75U4ZngaCje24DZCVNQgC6pzLiyHvhf7uH1br");
-  const [owner, setOwner] = useState(wallet ?? "");
+  const [market, setMarket] = useState("");
   const [amount, setAmount] = useState("1000");
   const [isBase, setIsBase] = useState(false);
   const [userToken, setUserToken] = useState("");
   const [vaultToken, setVaultToken] = useState("");
-  const [submit, setSubmit] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [last, setLast] = useState<OnchainResult | null>(null);
+  const [lastJson, setLastJson] = useState<string | null>(null);
 
   useEffect(() => {
-    if (wallet) setOwner(wallet);
-  }, [wallet]);
-
-  const run = async (fn: () => Promise<OnchainResult>, label: string) => {
-    setBusy(true);
-    setLast(null);
     try {
-      const r = await fn();
-      setLast(r);
-      if (r.error) showToast(`${label} error: ${r.error}`);
-      else if (r.submitted) showToast(`${label} submitted: ${r.signature?.slice(0, 12)}…`);
-      else showToast(`${label} built (submit=false)`);
-      const m = r.built.pdas?.market ?? r.built.pdas?.["market"];
-      if (typeof m === "string") setMarket(m);
-      if (typeof r.built.pdas?.market === "string") setMarket(r.built.pdas.market as string);
+      const [m] = deriveMarket(
+        programId(),
+        new PublicKey(pair.baseMint),
+        new PublicKey(pair.quoteMint)
+      );
+      setMarket(m.toBase58());
+    } catch {
+      setMarket("");
+    }
+  }, [pair]);
+
+  const vaultPdaPreview = useMemo(() => {
+    if (!wallet || !market) return "";
+    try {
+      const [v] = deriveUserVault(
+        programId(),
+        new PublicKey(market),
+        new PublicKey(wallet)
+      );
+      return v.toBase58();
+    } catch {
+      return "";
+    }
+  }, [wallet, market]);
+
+  const sendBuilt = async (label: string, built: BuiltLocal) => {
+    if (!wallet) {
+      showToast("先连接钱包");
+      return;
+    }
+    setBusy(true);
+    setLastJson(null);
+    try {
+      const { signature } = await signAndSendInstruction(built.ix);
+      setLastJson(
+        JSON.stringify(
+          {
+            name: built.name,
+            signature,
+            pdas: built.pdas,
+            requiredSigner: built.requiredSigner,
+            programId: built.ix.programId.toBase58(),
+            keys: built.ix.keys.map((k) => ({
+              pubkey: k.pubkey.toBase58(),
+              isSigner: k.isSigner,
+              isWritable: k.isWritable,
+            })),
+          },
+          null,
+          2
+        )
+      );
+      if (built.pdas.market) setMarket(built.pdas.market);
+      showToast(`${label}: ${signature.slice(0, 12)}…`);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setLastJson(JSON.stringify({ error: msg }, null, 2));
+      showToast(msg);
     } finally {
       setBusy(false);
     }
   };
 
+  let programLabel = "(invalid program id)";
+  try {
+    programLabel = programId().toBase58();
+  } catch {
+    /* keep */
+  }
+
   return (
     <div className="space-y-4">
       <div className="panel">
         <div className="panel-title">Admin · 链上准备</div>
-        <div className="space-y-3 p-3 text-sm">
-          <p className="text-xs text-gray-500">
-            默认 <code className="text-gray-400">submit=false</code> 只构造指令。
-            勾选 Submit 并用匹配的 <code className="text-gray-400">SETTLEMENT_KEYPAIR</code> 热钱包才会真上链。
+        <div className="space-y-1 p-3 text-xs text-gray-500">
+          <p>
+            指令在前端本地构造，Phantom 签名发送。
+            SDK：@solana/web3.js <strong className="text-gray-300">v1</strong>
+            （与 Phantom 兼容；v3 易报 expected buffer）。
           </p>
-          <label className="flex items-center gap-2 text-xs text-gray-400">
-            <input
-              type="checkbox"
-              checked={submit}
-              onChange={(e) => setSubmit(e.target.checked)}
-            />
-            Submit on-chain (热钱包)
-          </label>
+          <p className="font-mono text-[10px] break-all">program {programLabel}</p>
+          {!wallet && (
+            <p className="text-ask">未连接钱包 — 请先在右上角 Connect Wallet</p>
+          )}
+          {wallet && (
+            <p className="font-mono text-[10px] text-accent break-all">
+              signer {wallet}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Init Market */}
       <div className="panel">
         <div className="panel-title">1. InitializeMarket</div>
         <div className="grid gap-2 p-3 sm:grid-cols-2">
@@ -103,83 +142,86 @@ export function AdminPanel({ wallet, showToast }: Props) {
                 </option>
               ))}
             </select>
-            <p className="mt-1 font-mono text-[10px] text-gray-500">
-              base {pair.baseMint.slice(0, 8)}… · quote {pair.quoteMint.slice(0, 8)}…
+            <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">
+              market PDA: {market || "—"}
             </p>
           </div>
           <button
             type="button"
             className="btn-primary sm:col-span-2"
-            disabled={busy}
-            onClick={() =>
-              run(
-                () =>
-                  api.initializeMarket({
-                    base_mint: pair.baseMint,
-                    quote_mint: pair.quoteMint,
-                    authority: "69ouCtDdqt7srmncBTgwbfy9yQMGCEuFPNGUFpPwWRKM",
-                    // authority: "Ax81KAFh4tZAqoKLGiebbBMSxEzGnrfXZL9kGCWwwaqJ",
-                    submit,
-                  }),
-                "InitMarket"
-              )
-            }
+            disabled={busy || !wallet}
+            onClick={() => {
+              if (!wallet) return;
+              void sendBuilt(
+                "InitMarket",
+                buildInitializeMarket({
+                  authority: new PublicKey(wallet),
+                  baseMint: new PublicKey(pair.baseMint),
+                  quoteMint: new PublicKey(pair.quoteMint),
+                })
+              );
+            }}
           >
-            Initialize Market
+            Initialize Market（钱包签名发送）
           </button>
         </div>
       </div>
 
-      {/* Init Vault */}
       <div className="panel">
         <div className="panel-title">2. InitializeVault</div>
         <div className="grid gap-2 p-3 sm:grid-cols-2">
-          <div>
-            <label className="label">Owner (钱包)</label>
+          <div className="sm:col-span-2">
+            <label className="label">Owner = 当前钱包</label>
             <input
               className="input font-mono text-xs"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-              placeholder="连接钱包后自动填入"
+              value={wallet ?? ""}
+              readOnly
+              placeholder="Connect wallet first"
             />
-            {wallet && (
-              <button type="button" className="btn-ghost mt-1 text-[10px]" onClick={() => setOwner(wallet)}>
-                使用当前钱包
-              </button>
-            )}
           </div>
-          <div>
+          <div className="sm:col-span-2">
             <label className="label">Market PDA</label>
-            <input className="input font-mono text-xs" value={market} onChange={(e) => setMarket(e.target.value)} />
+            <input
+              className="input font-mono text-xs"
+              value={market}
+              onChange={(e) => setMarket(e.target.value)}
+            />
+            {vaultPdaPreview && (
+              <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">
+                user_vault PDA: {vaultPdaPreview}
+              </p>
+            )}
           </div>
           <button
             type="button"
             className="btn-primary sm:col-span-2"
-            disabled={busy || !owner}
-            onClick={() =>
-              run(
-                () =>
-                  api.initializeVault({
-                    owner,
-                    market: market || undefined,
-                    submit,
-                  }),
-                "InitVault"
-              )
-            }
+            disabled={busy || !wallet || !market}
+            onClick={() => {
+              if (!wallet || !market) return;
+              void sendBuilt(
+                "InitVault",
+                buildInitializeVault({
+                  owner: new PublicKey(wallet),
+                  market: new PublicKey(market),
+                })
+              );
+            }}
           >
-            Initialize Vault
+            Initialize Vault（钱包签名发送）
           </button>
         </div>
       </div>
 
-      {/* Deposit / Withdraw */}
       <div className="panel">
         <div className="panel-title">3. Deposit / Withdraw</div>
         <div className="grid gap-2 p-3 sm:grid-cols-2">
           <div>
             <label className="label">Amount</label>
-            <input className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <input
+              className="input"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Asset</label>
@@ -188,71 +230,81 @@ export function AdminPanel({ wallet, showToast }: Props) {
               value={isBase ? "base" : "quote"}
               onChange={(e) => setIsBase(e.target.value === "base")}
             >
-              <option value="quote">Quote</option>
-              <option value="base">Base</option>
+              <option value="quote">Quote ({pair.quoteSymbol})</option>
+              <option value="base">Base ({pair.baseSymbol})</option>
             </select>
           </div>
           <div>
             <label className="label">User token account</label>
-            <input className="input font-mono text-xs" value={userToken} onChange={(e) => setUserToken(e.target.value)} />
+            <input
+              className="input font-mono text-xs"
+              value={userToken}
+              onChange={(e) => setUserToken(e.target.value)}
+              placeholder="用户 ATA"
+            />
           </div>
           <div>
             <label className="label">Vault token account</label>
-            <input className="input font-mono text-xs" value={vaultToken} onChange={(e) => setVaultToken(e.target.value)} />
+            <input
+              className="input font-mono text-xs"
+              value={vaultToken}
+              onChange={(e) => setVaultToken(e.target.value)}
+              placeholder="托管 token 账户"
+            />
           </div>
           <button
             type="button"
             className="btn-bid"
-            disabled={busy || !owner || !userToken || !vaultToken}
-            onClick={() =>
-              run(
-                () =>
-                  api.deposit({
-                    owner,
-                    amount: Number(amount),
-                    is_base: isBase,
-                    user_token: userToken,
-                    vault_token: vaultToken,
-                    market: market || undefined,
-                    submit,
-                  }),
-                "Deposit"
-              )
-            }
+            disabled={busy || !wallet || !userToken || !vaultToken || !market}
+            onClick={() => {
+              if (!wallet || !market) return;
+              void sendBuilt(
+                "Deposit",
+                buildDeposit({
+                  owner: new PublicKey(wallet),
+                  market: new PublicKey(market),
+                  userToken: new PublicKey(userToken),
+                  vaultToken: new PublicKey(vaultToken),
+                  amount: Number(amount),
+                  isBase,
+                })
+              );
+            }}
           >
-            Deposit
+            Deposit（钱包签名）
           </button>
           <button
             type="button"
             className="btn-ask"
-            disabled={busy || !owner || !userToken || !vaultToken}
-            onClick={() =>
-              run(
-                () =>
-                  api.withdraw({
-                    owner,
-                    amount: Number(amount),
-                    is_base: isBase,
-                    user_token: userToken,
-                    vault_token: vaultToken,
-                    market: market || undefined,
-                    submit,
-                  }),
-                "Withdraw"
-              )
-            }
+            disabled={busy || !wallet || !userToken || !vaultToken || !market}
+            onClick={() => {
+              if (!wallet || !market) return;
+              void sendBuilt(
+                "Withdraw",
+                buildWithdraw({
+                  owner: new PublicKey(wallet),
+                  market: new PublicKey(market),
+                  userToken: new PublicKey(userToken),
+                  vaultToken: new PublicKey(vaultToken),
+                  amount: Number(amount),
+                  isBase,
+                })
+              );
+            }}
           >
-            Withdraw
+            Withdraw（钱包签名）
           </button>
         </div>
       </div>
 
-      <div className="panel">
-        <div className="panel-title">Last response</div>
-        <div className="p-3">
-          <ResultBox r={last} />
+      {lastJson && (
+        <div className="panel">
+          <div className="panel-title">Last result</div>
+          <pre className="max-h-56 overflow-auto p-3 text-[10px] text-gray-400 whitespace-pre-wrap break-all">
+            {lastJson}
+          </pre>
         </div>
-      </div>
+      )}
     </div>
   );
 }
