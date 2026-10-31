@@ -55,6 +55,7 @@ export const api = {
     price: number;
     quantity: number;
     user: string;
+    market: string;
   }) =>
     json<PlaceOrderResponse>("/orders", {
       method: "POST",

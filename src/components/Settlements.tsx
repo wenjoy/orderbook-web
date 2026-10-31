@@ -44,6 +44,13 @@ export function Settlements({ jobs }: Props) {
                 sig {j.signature}
               </div>
             )}
+            <div>
+              {j.error && (
+                <div className="mt-0.5 truncate text-[10px] text-orange-400 overflow-auto flex-wrap text-wrap">
+                  error: {j.error}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

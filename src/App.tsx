@@ -125,7 +125,9 @@ export default function App() {
     setBusy(true);
     try {
       const user = wallet.pubkey;
-      const res = await api.placeOrder({ ...p, user });
+      //TODO: get rid of hard code
+      const market = "DkLEtRq75U4ZngaCje24DZCVNQgC6pzLiyHvhf7uH1br"
+      const res = await api.placeOrder({ ...p, user, market });
       if (res.order_id != null && res.remaining != null && res.remaining > 0) {
         setOrders((prev) => [
           ...prev.filter((o) => o.id !== res.order_id),
