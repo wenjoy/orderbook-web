@@ -12,6 +12,7 @@ import {
   type BuiltLocal,
 } from "../lib/settlementIx";
 import { signAndSendInstruction } from "../lib/walletSend";
+import { api } from "../api";
 
 type Props = {
   wallet: string | null;
@@ -150,17 +151,28 @@ export function AdminPanel({ wallet, showToast }: Props) {
             type="button"
             className="btn-primary sm:col-span-2"
             disabled={busy || !wallet}
-            onClick={() => {
-              if (!wallet) return;
-              void sendBuilt(
-                "InitMarket",
-                buildInitializeMarket({
-                  authority: new PublicKey(wallet),
-                  baseMint: new PublicKey(pair.baseMint),
-                  quoteMint: new PublicKey(pair.quoteMint),
+            onClick={async () => {
+              try {
+                await api.initializeMarket({
+                  base_mint: DEFAULT_MARKET.baseMint,
+                  quote_mint: DEFAULT_MARKET.quoteMint,
+                  authority: "69ouCtDdqt7srmncBTgwbfy9yQMGCEuFPNGUFpPwWRKM"
                 })
-              );
+              } catch (error) {
+                console.error(error)
+              }
             }}
+          // onClick={() => {
+          //   if (!wallet) return;
+          //   void sendBuilt(
+          //     "InitMarket",
+          //     buildInitializeMarket({
+          //       authority: new PublicKey(wallet),
+          //       baseMint: new PublicKey(pair.baseMint),
+          //       quoteMint: new PublicKey(pair.quoteMint),
+          //     })
+          //   );
+          // }}
           >
             Initialize Market（钱包签名发送）
           </button>
