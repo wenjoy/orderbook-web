@@ -34,21 +34,6 @@ export function AdminPanel({ wallet, showToast }: Props) {
   const [lastJson, setLastJson] = useState<string | null>(null);
 
   useEffect(() => {
-    let mint = isBase ? pair.baseMint : pair.quoteMint;
-    if (wallet) {
-      let [ata] = PublicKey.findProgramAddressSync(
-        [new PublicKey(wallet).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
-      setUserToken(ata.toBase58());
-    }
-
-    if (market) {
-      let [ata] = PublicKey.findProgramAddressSync(
-        [new PublicKey(market).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
-      setVaultToken(ata.toBase58());
-    }
-  }, [market, wallet, isBase])
-
-  useEffect(() => {
     try {
       const [m] = deriveMarket(
         programId(),
@@ -74,6 +59,22 @@ export function AdminPanel({ wallet, showToast }: Props) {
       return "";
     }
   }, [wallet, market]);
+
+  useEffect(() => {
+    let mint = isBase ? pair.baseMint : pair.quoteMint;
+    if (wallet) {
+      let [ata] = PublicKey.findProgramAddressSync(
+        [new PublicKey(wallet).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+      setUserToken(ata.toBase58());
+    }
+
+    if (vaultPdaPreview) {
+      let [ata] = PublicKey.findProgramAddressSync(
+        [new PublicKey(vaultPdaPreview).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+      setVaultToken(ata.toBase58());
+    }
+  }, [vaultPdaPreview, wallet, isBase])
+
 
   const sendBuilt = async (label: string, built: BuiltLocal) => {
     if (!wallet) {
