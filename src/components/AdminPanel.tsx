@@ -19,16 +19,34 @@ type Props = {
   showToast: (m: string) => void;
 };
 
+const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+
 /** Admin：本地构造（web3.js v1 + Phantom） */
 export function AdminPanel({ wallet, showToast }: Props) {
   const [pair, setPair] = useState<MarketPair>(DEFAULT_MARKET);
   const [market, setMarket] = useState("");
-  const [amount, setAmount] = useState("1000");
+  const [amount, setAmount] = useState("10");
   const [isBase, setIsBase] = useState(false);
   const [userToken, setUserToken] = useState("");
   const [vaultToken, setVaultToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastJson, setLastJson] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mint = isBase ? pair.baseMint : pair.quoteMint;
+    if (wallet) {
+      let [ata] = PublicKey.findProgramAddressSync(
+        [new PublicKey(wallet).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+      setUserToken(ata.toBase58());
+    }
+
+    if (market) {
+      let [ata] = PublicKey.findProgramAddressSync(
+        [new PublicKey(market).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+      setVaultToken(ata.toBase58());
+    }
+  }, [market, wallet, isBase])
 
   useEffect(() => {
     try {
