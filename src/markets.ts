@@ -19,8 +19,8 @@ export const MARKET_PAIRS: MarketPair[] = [
     baseSymbol: "BASE",
     quoteSymbol: "QUOTE",
     // 固定演示 mint（合法 base58 形态，便于 PDA / API 构造）
-    baseMint: "11111111111111111111111111111112",
-    quoteMint: "11111111111111111111111111111113",
+    baseMint: "7Nt8adhPuWCBTjbBy3WqJrXrhLctwR9oQMXmuDcUQSFg",
+    quoteMint: "8yXFT7zGrFj9iMiQHuXy1qLvn7YNs7q4sUw6tDUYVYmv",
   },
 ];
 
