@@ -21,6 +21,9 @@ import type {
   Trade,
   WsEvent,
 } from "./types";
+import { deriveMarket, programId } from "./lib/settlementIx";
+import { PublicKey } from "@solana/web3.js";
+import { DEFAULT_MARKET } from "./markets";
 
 type Tab = "trade" | "admin";
 
@@ -125,9 +128,14 @@ export default function App() {
     setBusy(true);
     try {
       const user = wallet.pubkey;
-      //TODO: get rid of hard code
-      const market = "DkLEtRq75U4ZngaCje24DZCVNQgC6pzLiyHvhf7uH1br"
-      const res = await api.placeOrder({ ...p, user, market });
+
+      const pair = DEFAULT_MARKET;
+      const [market] = deriveMarket(
+        programId(),
+        new PublicKey(pair.baseMint),
+        new PublicKey(pair.quoteMint)
+      );
+      const res = await api.placeOrder({ ...p, user, market: market.toBase58() });
       if (res.order_id != null && res.remaining != null && res.remaining > 0) {
         setOrders((prev) => [
           ...prev.filter((o) => o.id !== res.order_id),
@@ -224,7 +232,7 @@ export default function App() {
             <div className="space-y-4 lg:col-span-3">
               <BalancesPanel balances={balances} />
               <OrderFormControlled
-                user={wallet.pubkey}
+                user={wallet.pubkey!}
                 price={price}
                 setPrice={setPrice}
                 side={side}
@@ -232,7 +240,7 @@ export default function App() {
                 busy={busy}
                 onSubmit={placeOrder}
               />
-              <OpenOrders orders={orders} user={wallet.pubkey} onCancel={cancelOrder} />
+              <OpenOrders orders={orders} user={wallet.pubkey!} onCancel={cancelOrder} />
             </div>
             <div className="space-y-4 lg:col-span-5">
               <Orderbook
