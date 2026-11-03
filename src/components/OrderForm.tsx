@@ -128,7 +128,7 @@ export function OrderFormControlled({
   busy: boolean;
   onSubmit: (p: { side: Side; price: number; quantity: number }) => Promise<void>;
 }) {
-  const [qty, setQty] = useState("10");
+  const [qty, setQty] = useState("1");
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {

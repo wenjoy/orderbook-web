@@ -40,7 +40,7 @@ export default function App() {
   const [settlements, setSettlements] = useState<SettlementJob[]>([]);
 
   const [side, setSide] = useState<Side>("Bid");
-  const [price, setPrice] = useState("100");
+  const [price, setPrice] = useState("2");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
