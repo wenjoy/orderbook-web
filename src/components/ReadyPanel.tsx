@@ -279,117 +279,114 @@ export function ReadyPanel({ wallet, showToast }: Props) {
             </div>
           </div>
 
-          <div className="panel">
-            <div className="panel-title">补齐操作</div>
-            <div className="grid gap-2 p-3 sm:grid-cols-2">
-              <button
-                type="button"
-                className="btn-primary text-xs"
-                disabled={busy || !wallet || !!report.marketPda.decoded?.is_initialized}
-                onClick={() =>
-                  void signIx("InitMarket", () =>
-                    buildInitializeMarket({
-                      authority: new PublicKey(wallet!),
-                      baseMint: new PublicKey(pair.baseMint),
-                      quoteMint: new PublicKey(pair.quoteMint),
-                    })
-                  )
-                }
-              >
-                创建 Market PDA
-              </button>
-              <button
-                type="button"
-                className="btn-primary text-xs"
-                disabled={
-                  busy ||
-                  !wallet ||
-                  !report.marketPda.decoded?.is_initialized ||
-                  !!report.userVault.decoded?.is_initialized
-                }
-                onClick={() =>
-                  void signIx("InitVault", () =>
-                    buildInitializeVault({
-                      owner: new PublicKey(wallet!),
-                      market: new PublicKey(report.marketPda.address),
-                    })
-                  )
-                }
-              >
-                创建 UserVault PDA
-              </button>
-              <button
-                type="button"
-                className="btn-ghost text-xs"
-                disabled={busy || !wallet || !report.baseMint.isInitialized}
-                onClick={() =>
-                  void createAta(
-                    "Wallet Base ATA",
-                    new PublicKey(wallet!),
-                    new PublicKey(pair.baseMint)
-                  )
-                }
-              >
-                创建钱包 Base ATA
-              </button>
-              <button
-                type="button"
-                className="btn-ghost text-xs"
-                disabled={busy || !wallet || !report.quoteMint.isInitialized}
-                onClick={() =>
-                  void createAta(
-                    "Wallet Quote ATA",
-                    new PublicKey(wallet!),
-                    new PublicKey(pair.quoteMint)
-                  )
-                }
-              >
-                创建钱包 Quote ATA
-              </button>
-              <button
-                type="button"
-                className="btn-ghost text-xs"
-                disabled={
-                  busy ||
-                  !wallet ||
-                  !report.baseMint.isInitialized ||
-                  !report.marketPda.decoded?.is_initialized
-                }
-                onClick={() =>
-                  void createAta(
-                    "Vault Base ATA",
-                    new PublicKey(report.marketPda.address),
-                    new PublicKey(pair.baseMint)
-                  )
-                }
-              >
-                创建托管 Base ATA
-              </button>
-              <button
-                type="button"
-                className="btn-ghost text-xs"
-                disabled={
-                  busy ||
-                  !wallet ||
-                  !report.quoteMint.isInitialized ||
-                  !report.marketPda.decoded?.is_initialized
-                }
-                onClick={() =>
-                  void createAta(
-                    "Vault Quote ATA",
-                    new PublicKey(report.marketPda.address),
-                    new PublicKey(pair.quoteMint)
-                  )
-                }
-              >
-                创建托管 Quote ATA
-              </button>
-            </div>
-            <p className="px-3 pb-3 text-[10px] text-gray-500">
-              Program 部署与真实 Mint 创建无法在浏览器一键完成：请 CLI deploy，并用
-              spl-token create-token 后把地址写入 markets.ts。
-            </p>
-          </div>
+          {/* TODO: keep this in case need to init at client side */}
+          {/* <div className="panel"> */}
+          {/*   <div className="panel-title">补齐操作</div> */}
+          {/*   <div className="grid gap-2 p-3 sm:grid-cols-2"> */}
+          {/*     <button */}
+          {/*       type="button" */}
+          {/*       className="btn-primary text-xs" */}
+          {/*       disabled={busy || !wallet || !!report.marketPda.decoded?.is_initialized} */}
+          {/*       onClick={() => */}
+          {/*         void signIx("InitMarket", () => */}
+          {/*           buildInitializeMarket({ */}
+          {/*             authority: new PublicKey(wallet!), */}
+          {/*             baseMint: new PublicKey(pair.baseMint), */}
+          {/*             quoteMint: new PublicKey(pair.quoteMint), */}
+          {/*           }) */}
+          {/*         ) */}
+          {/*       } */}
+          {/*     > */}
+          {/*       创建 Market PDA */}
+          {/*     </button> */}
+          {/*     <button */}
+          {/*       type="button" */}
+          {/*       className="btn-primary text-xs" */}
+          {/*       disabled={ */}
+          {/*         busy || */}
+          {/*         !wallet || */}
+          {/*         !report.marketPda.decoded?.is_initialized || */}
+          {/*         !!report.userVault.decoded?.is_initialized */}
+          {/*       } */}
+          {/*       onClick={() => */}
+          {/*         void signIx("InitVault", () => */}
+          {/*           buildInitializeVault({ */}
+          {/*             owner: new PublicKey(wallet!), */}
+          {/*             market: new PublicKey(report.marketPda.address), */}
+          {/*           }) */}
+          {/*         ) */}
+          {/*       } */}
+          {/*     > */}
+          {/*       创建 UserVault PDA */}
+          {/*     </button> */}
+          {/*     <button */}
+          {/*       type="button" */}
+          {/*       className="btn-ghost text-xs" */}
+          {/*       disabled={busy || !wallet || !report.baseMint.isInitialized} */}
+          {/*       onClick={() => */}
+          {/*         void createAta( */}
+          {/*           "Wallet Base ATA", */}
+          {/*           new PublicKey(wallet!), */}
+          {/*           new PublicKey(pair.baseMint) */}
+          {/*         ) */}
+          {/*       } */}
+          {/*     > */}
+          {/*       创建钱包 Base ATA */}
+          {/*     </button> */}
+          {/*     <button */}
+          {/*       type="button" */}
+          {/*       className="btn-ghost text-xs" */}
+          {/*       disabled={busy || !wallet || !report.quoteMint.isInitialized} */}
+          {/*       onClick={() => */}
+          {/*         void createAta( */}
+          {/*           "Wallet Quote ATA", */}
+          {/*           new PublicKey(wallet!), */}
+          {/*           new PublicKey(pair.quoteMint) */}
+          {/*         ) */}
+          {/*       } */}
+          {/*     > */}
+          {/*       创建钱包 Quote ATA */}
+          {/*     </button> */}
+          {/*     <button */}
+          {/*       type="button" */}
+          {/*       className="btn-ghost text-xs" */}
+          {/*       disabled={ */}
+          {/*         busy || */}
+          {/*         !wallet || */}
+          {/*         !report.baseMint.isInitialized || */}
+          {/*         !report.marketPda.decoded?.is_initialized */}
+          {/*       } */}
+          {/*       onClick={() => */}
+          {/*         void createAta( */}
+          {/*           "Vault Base ATA", */}
+          {/*           new PublicKey(report.marketPda.address), */}
+          {/*           new PublicKey(pair.baseMint) */}
+          {/*         ) */}
+          {/*       } */}
+          {/*     > */}
+          {/*       创建托管 Base ATA */}
+          {/*     </button> */}
+          {/*     <button */}
+          {/*       type="button" */}
+          {/*       className="btn-ghost text-xs" */}
+          {/*       disabled={ */}
+          {/*         busy || */}
+          {/*         !wallet || */}
+          {/*         !report.quoteMint.isInitialized || */}
+          {/*         !report.marketPda.decoded?.is_initialized */}
+          {/*       } */}
+          {/*       onClick={() => */}
+          {/*         void createAta( */}
+          {/*           "Vault Quote ATA", */}
+          {/*           new PublicKey(report.marketPda.address), */}
+          {/*           new PublicKey(pair.quoteMint) */}
+          {/*         ) */}
+          {/*       } */}
+          {/*     > */}
+          {/*       创建托管 Quote ATA */}
+          {/*     </button> */}
+          {/*   </div> */}
+          {/* </div> */}
         </>
       )}
     </div>

@@ -3,7 +3,6 @@ import { PublicKey } from "@solana/web3.js";
 import { DEFAULT_MARKET, MARKET_PAIRS, type MarketPair } from "../markets";
 import {
   buildDeposit,
-  buildInitializeMarket,
   buildInitializeVault,
   buildWithdraw,
   deriveMarket,
@@ -12,7 +11,6 @@ import {
   type BuiltLocal,
 } from "../lib/settlementIx";
 import { signAndSendInstruction } from "../lib/walletSend";
-import { api } from "../api";
 
 type Props = {
   wallet: string | null;
@@ -125,13 +123,7 @@ export function AdminPanel({ wallet, showToast }: Props) {
   return (
     <div className="space-y-4">
       <div className="panel">
-        <div className="panel-title">Admin · 链上准备</div>
         <div className="space-y-1 p-3 text-xs text-gray-500">
-          <p>
-            指令在前端本地构造，Phantom 签名发送。
-            SDK：@solana/web3.js <strong className="text-gray-300">v1</strong>
-            （与 Phantom 兼容；v3 易报 expected buffer）。
-          </p>
           <p className="font-mono text-[10px] break-all">program {programLabel}</p>
           {!wallet && (
             <p className="text-ask">未连接钱包 — 请先在右上角 Connect Wallet</p>
@@ -167,35 +159,6 @@ export function AdminPanel({ wallet, showToast }: Props) {
               market PDA: {market || "—"}
             </p>
           </div>
-          <button
-            type="button"
-            className="btn-primary sm:col-span-2"
-            disabled={busy || !wallet}
-            onClick={async () => {
-              try {
-                await api.initializeMarket({
-                  base_mint: DEFAULT_MARKET.baseMint,
-                  quote_mint: DEFAULT_MARKET.quoteMint,
-                  authority: "69ouCtDdqt7srmncBTgwbfy9yQMGCEuFPNGUFpPwWRKM"
-                })
-              } catch (error) {
-                console.error(error)
-              }
-            }}
-          // onClick={() => {
-          //   if (!wallet) return;
-          //   void sendBuilt(
-          //     "InitMarket",
-          //     buildInitializeMarket({
-          //       authority: new PublicKey(wallet),
-          //       baseMint: new PublicKey(pair.baseMint),
-          //       quoteMint: new PublicKey(pair.quoteMint),
-          //     })
-          //   );
-          // }}
-          >
-            Initialize Market（钱包签名发送）
-          </button>
         </div>
       </div>
 
