@@ -24,6 +24,7 @@ import type {
 import { deriveMarket, programId } from "./lib/settlementIx";
 import { PublicKey } from "@solana/web3.js";
 import { DEFAULT_MARKET } from "./markets";
+import { ReadyPanel } from "./components/ReadyPanel";
 
 type Tab = "trade" | "admin";
 
@@ -203,7 +204,10 @@ export default function App() {
 
       <main className="mx-auto max-w-7xl p-4">
         {tab === "admin" ? (
-          <AdminPanel wallet={wallet.pubkey} showToast={showToast} />
+          <>
+            <ReadyPanel wallet={wallet.pubkey} showToast={showToast} />
+            <AdminPanel wallet={wallet.pubkey} showToast={showToast} />
+          </>
         ) : !wallet.connected ? (
           <div className="flex flex-col items-center justify-center gap-4 py-24">
             <p className="text-lg font-medium">Connect wallet to trade</p>
