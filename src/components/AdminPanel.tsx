@@ -70,7 +70,8 @@ export function AdminPanel({ wallet, showToast }: Props) {
 
     if (vaultPdaPreview) {
       let [ata] = PublicKey.findProgramAddressSync(
-        [new PublicKey(vaultPdaPreview).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+        // [new PublicKey(vaultPdaPreview).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+        [new PublicKey(market).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
       setVaultToken(ata.toBase58());
     }
   }, [vaultPdaPreview, wallet, isBase])
