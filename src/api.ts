@@ -1,3 +1,4 @@
+import { MarketPair } from "./markets";
 import type {
   Orderbook,
   PlaceOrderResponse,
@@ -49,6 +50,8 @@ export const api = {
   orderbook: () => json<Orderbook>("/orderbook"),
 
   trades: () => json<{ trades: Trade[] }>("/trades").then((r) => r.trades),
+
+  markets: () => json<MarketPair[]>("/markets"),
 
   placeOrder: (body: {
     side: Side;

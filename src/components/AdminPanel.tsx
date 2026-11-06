@@ -11,6 +11,7 @@ import {
   type BuiltLocal,
 } from "../lib/settlementIx";
 import { signAndSendInstruction } from "../lib/walletSend";
+import { api } from "../api";
 
 type Props = {
   wallet: string | null;
@@ -23,6 +24,7 @@ const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xW
 /** Admin：本地构造（web3.js v1 + Phantom） */
 export function AdminPanel({ wallet, showToast }: Props) {
   const [pair, setPair] = useState<MarketPair>(DEFAULT_MARKET);
+  const [pairs, setPairs] = useState<MarketPair[]>([]);
   const [market, setMarket] = useState("");
   const [amount, setAmount] = useState("10");
   const [isBase, setIsBase] = useState(false);
@@ -31,6 +33,9 @@ export function AdminPanel({ wallet, showToast }: Props) {
   const [busy, setBusy] = useState(false);
   const [lastJson, setLastJson] = useState<string | null>(null);
 
+  useEffect(() => {
+    api.markets().then((pairs) => setPairs(pairs)).catch(err => console.error("fetch markets err", err))
+  }, [])
   useEffect(() => {
     try {
       const [m] = deriveMarket(
@@ -149,7 +154,7 @@ export function AdminPanel({ wallet, showToast }: Props) {
                 if (next) setPair(next);
               }}
             >
-              {MARKET_PAIRS.map((m) => (
+              {pairs.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.symbol}
                 </option>
