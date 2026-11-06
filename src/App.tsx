@@ -23,8 +23,8 @@ import type {
 } from "./types";
 import { deriveMarket, programId } from "./lib/settlementIx";
 import { PublicKey } from "@solana/web3.js";
+import { DEFAULT_MARKET } from "./markets";
 import { ReadyPanel } from "./components/ReadyPanel";
-import { MarketPair } from "./markets";
 
 type Tab = "trade" | "admin";
 
@@ -121,7 +121,6 @@ export default function App() {
     side: Side;
     price: number;
     quantity: number;
-    pair: MarketPair;
   }) => {
     if (!wallet.pubkey) {
       showToast("Connect wallet to trade");
@@ -130,8 +129,8 @@ export default function App() {
     setBusy(true);
     try {
       const user = wallet.pubkey;
-      const pair = p.pair;
 
+      const pair = DEFAULT_MARKET;
       const [market] = deriveMarket(
         programId(),
         new PublicKey(pair.baseMint),
