@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { rpcUrl } from "../api";
-import { DEFAULT_MARKET } from "../markets";
 
 export type TokenBalance = {
   mint: string;
@@ -78,11 +77,10 @@ export function useBalances(owner: string | null) {
         };
       });
 
-      const prefer = new Set([DEFAULT_MARKET.baseMint, DEFAULT_MARKET.quoteMint]);
-      tokens = [
-        ...tokens.filter((t) => prefer.has(t.mint)),
-        ...tokens.filter((t) => !prefer.has(t.mint)),
-      ];
+      // tokens = [
+      //   ...tokens.filter((t) => prefer.has(t.mint)),
+      //   ...tokens.filter((t) => !prefer.has(t.mint)),
+      // ];
 
       setState({ sol, tokens, loading: false, error: null });
     } catch (e) {

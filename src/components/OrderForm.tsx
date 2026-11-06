@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Side } from "../types";
+import { MarketPair } from "../markets";
 
 interface Props {
   user: string;
@@ -126,10 +127,11 @@ export function OrderFormControlled({
   side: Side;
   setSide: (s: Side) => void;
   busy: boolean;
-  onSubmit: (p: { side: Side; price: number; quantity: number }) => Promise<void>;
+  onSubmit: (p: { side: Side; price: number; quantity: number, pair: MarketPair }) => Promise<void>;
 }) {
   const [qty, setQty] = useState("1");
   const [error, setError] = useState<string | null>(null);
+  const pair = [];
 
   const submit = async () => {
     setError(null);
@@ -144,7 +146,7 @@ export function OrderFormControlled({
       return;
     }
     try {
-      await onSubmit({ side, price: p, quantity: q });
+      await onSubmit({ side, price: p, quantity: q, pair });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

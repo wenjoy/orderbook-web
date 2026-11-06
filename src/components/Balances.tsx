@@ -1,5 +1,4 @@
 import type { Balances } from "../hooks/useBalances";
-import { DEFAULT_MARKET } from "../markets";
 
 export function BalancesPanel({
   balances,
@@ -9,8 +8,6 @@ export function BalancesPanel({
   onRefresh?: () => void;
 }) {
   const label = (mint: string) => {
-    if (mint === DEFAULT_MARKET.baseMint) return DEFAULT_MARKET.baseSymbol;
-    if (mint === DEFAULT_MARKET.quoteMint) return DEFAULT_MARKET.quoteSymbol;
     return mint.slice(0, 4) + "…" + mint.slice(-4);
   };
 
