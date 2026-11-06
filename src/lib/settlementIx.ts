@@ -8,7 +8,6 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { DEFAULT_MARKET } from "../markets";
 
 export function programId(): PublicKey {
   const id =
@@ -229,13 +228,4 @@ export function buildWithdraw(params: {
     pdas: { user_vault: vault.toBase58() },
     requiredSigner: "owner",
   };
-}
-
-export function defaultMarketPda(): PublicKey {
-  const [m] = deriveMarket(
-    programId(),
-    new PublicKey(DEFAULT_MARKET.baseMint),
-    new PublicKey(DEFAULT_MARKET.quoteMint)
-  );
-  return m;
 }

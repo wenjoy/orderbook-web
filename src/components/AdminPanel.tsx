@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { DEFAULT_MARKET, MARKET_PAIRS, type MarketPair } from "../markets";
+import { type MarketPair } from "../markets";
 import {
   buildDeposit,
   buildInitializeVault,
@@ -23,8 +23,8 @@ const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xW
 
 /** Admin：本地构造（web3.js v1 + Phantom） */
 export function AdminPanel({ wallet, showToast }: Props) {
-  const [pair, setPair] = useState<MarketPair>(DEFAULT_MARKET);
   const [pairs, setPairs] = useState<MarketPair[]>([]);
+  const [pair, setPair] = useState<MarketPair>(pairs[0]);
   const [market, setMarket] = useState("");
   const [amount, setAmount] = useState("10");
   const [isBase, setIsBase] = useState(false);
@@ -150,7 +150,7 @@ export function AdminPanel({ wallet, showToast }: Props) {
               className="input"
               value={pair.id}
               onChange={(e) => {
-                const next = MARKET_PAIRS.find((m) => m.id === e.target.value);
+                const next = pairs.find((m) => m.id === e.target.value);
                 if (next) setPair(next);
               }}
             >

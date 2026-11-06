@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { DEFAULT_MARKET, MARKET_PAIRS, type MarketPair } from "../markets";
+import { type MarketPair } from "../markets";
 import {
   buildInitializeMarket,
   buildInitializeVault,
@@ -11,6 +11,7 @@ import {
   fetchReadyReport,
   type ReadyReport,
 } from "../lib/chainStatus";
+import { api } from "../api";
 
 type Props = {
   wallet: string | null;
@@ -48,7 +49,8 @@ function Row({
 }
 
 export function ReadyPanel({ wallet, showToast }: Props) {
-  const [pair, setPair] = useState<MarketPair>(DEFAULT_MARKET);
+  const [pairs, setPairs] = useState<MarketPair[]>([]);
+  const [pair, setPair] = useState<MarketPair>(pairs[0]);
   const [report, setReport] = useState<ReadyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -70,6 +72,9 @@ export function ReadyPanel({ wallet, showToast }: Props) {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    api.markets().then((pairs) => setPairs(pairs)).catch(err => console.error("fetch markets err", err))
+  }, [])
   const signIx = async (
     label: string,
     build: () => { ix: import("@solana/web3.js").TransactionInstruction }
@@ -139,11 +144,11 @@ export function ReadyPanel({ wallet, showToast }: Props) {
               className="input"
               value={pair.id}
               onChange={(e) => {
-                const n = MARKET_PAIRS.find((m) => m.id === e.target.value);
+                const n = pairs.find((m) => m.id === e.target.value);
                 if (n) setPair(n);
               }}
             >
-              {MARKET_PAIRS.map((m) => (
+              {pairs.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.symbol}
                 </option>
