@@ -1,4 +1,4 @@
-import { MarketPair } from "./markets";
+import { toMarketPair, type ApiMarket, type MarketPair } from "./markets";
 import type {
   Orderbook,
   PlaceOrderResponse,
@@ -51,7 +51,8 @@ export const api = {
 
   trades: () => json<{ trades: Trade[] }>("/trades").then((r) => r.trades),
 
-  markets: () => json<MarketPair[]>("/markets"),
+  markets: () =>
+    json<ApiMarket[]>("/markets").then((rows) => rows.map(toMarketPair)),
 
   placeOrder: (body: {
     side: Side;

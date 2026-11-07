@@ -18,7 +18,7 @@ import {
   type DecodedMarket,
   type DecodedUserVault,
 } from "./decodeAccounts";
-import { deriveMarket, deriveUserVault, programId } from "./settlementIx";
+import { deriveMarket, deriveUserVault, ixData, programId } from "./settlementIx";
 import type { MarketPair } from "../markets";
 
 export const TOKEN_PROGRAM_ID = new PublicKey(
@@ -103,7 +103,7 @@ export function createAssociatedTokenAccountIx(params: {
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
-    data: new Uint8Array(), // CreateIdempotent 实际 tag=1；Create 为 empty。用 CreateIdempotent:
+    data: ixData(new Uint8Array()), // CreateIdempotent 实际 tag=1；Create 为 empty。用 CreateIdempotent:
   });
 }
 
@@ -124,7 +124,7 @@ export function createAssociatedTokenAccountIdempotentIx(params: {
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
-    data: new Uint8Array([1]),
+    data: ixData(new Uint8Array([1])),
   });
 }
 
@@ -281,7 +281,7 @@ export async function fetchReadyReport(params: {
     label: `Base mint 存在 (${params.pair.baseSymbol})`,
     fix: baseMintOk
       ? undefined
-      : "当前 markets.ts 里是占位 mint，需在链上创建真实 SPL mint 并改 markets.ts",
+      : "该市场的 base mint 链上不存在，请检查后端 markets 表中的 base_mint",
   });
   checks.push({
     id: "quote_mint",
@@ -289,7 +289,7 @@ export async function fetchReadyReport(params: {
     label: `Quote mint 存在 (${params.pair.quoteSymbol})`,
     fix: quoteMintOk
       ? undefined
-      : "同上，创建 quote mint 并更新 markets.ts",
+      : "该市场的 quote mint 链上不存在，请检查后端 markets 表中的 quote_mint",
   });
 
   const marketOk = marketInfo.exists && Boolean(marketDecoded?.is_initialized);

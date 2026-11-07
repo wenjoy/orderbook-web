@@ -11,21 +11,27 @@ import {
   type BuiltLocal,
 } from "../lib/settlementIx";
 import { signAndSendInstruction } from "../lib/walletSend";
-import { api } from "../api";
 
 type Props = {
   wallet: string | null;
   showToast: (m: string) => void;
+  markets: MarketPair[];
+  market: MarketPair | null;
+  onSelectMarket: (id: string) => void;
 };
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
 /** Admin：本地构造（web3.js v1 + Phantom） */
-export function AdminPanel({ wallet, showToast }: Props) {
-  const [pairs, setPairs] = useState<MarketPair[]>([]);
-  const [pair, setPair] = useState<MarketPair>(pairs[0]);
-  const [market, setMarket] = useState("");
+export function AdminPanel({
+  wallet,
+  showToast,
+  markets,
+  market: pair,
+  onSelectMarket,
+}: Props) {
+  const [marketAddress, setMarketAddress] = useState("");
   const [amount, setAmount] = useState("10");
   const [isBase, setIsBase] = useState(false);
   const [userToken, setUserToken] = useState("");
@@ -34,50 +40,56 @@ export function AdminPanel({ wallet, showToast }: Props) {
   const [lastJson, setLastJson] = useState<string | null>(null);
 
   useEffect(() => {
-    api.markets().then((pairs) => setPairs(pairs)).catch(err => console.error("fetch markets err", err))
-  }, [])
-  useEffect(() => {
+    if (!pair) {
+      setMarketAddress("");
+      return;
+    }
     try {
       const [m] = deriveMarket(
         programId(),
         new PublicKey(pair.baseMint),
         new PublicKey(pair.quoteMint)
       );
-      setMarket(m.toBase58());
+      setMarketAddress(m.toBase58());
     } catch {
-      setMarket("");
+      setMarketAddress("");
     }
   }, [pair]);
 
   const vaultPdaPreview = useMemo(() => {
-    if (!wallet || !market) return "";
+    if (!wallet || !marketAddress) return "";
     try {
       const [v] = deriveUserVault(
         programId(),
-        new PublicKey(market),
+        new PublicKey(marketAddress),
         new PublicKey(wallet)
       );
       return v.toBase58();
     } catch {
       return "";
     }
-  }, [wallet, market]);
+  }, [wallet, marketAddress]);
 
   useEffect(() => {
-    let mint = isBase ? pair.baseMint : pair.quoteMint;
+    if (!pair) {
+      setUserToken("");
+      setVaultToken("");
+      return;
+    }
+    const mint = isBase ? pair.baseMint : pair.quoteMint;
     if (wallet) {
-      let [ata] = PublicKey.findProgramAddressSync(
+      const [ata] = PublicKey.findProgramAddressSync(
         [new PublicKey(wallet).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
       setUserToken(ata.toBase58());
     }
 
     if (vaultPdaPreview) {
-      let [ata] = PublicKey.findProgramAddressSync(
+      const [ata] = PublicKey.findProgramAddressSync(
         // [new PublicKey(vaultPdaPreview).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
-        [new PublicKey(market).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+        [new PublicKey(marketAddress).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
       setVaultToken(ata.toBase58());
     }
-  }, [vaultPdaPreview, wallet, isBase])
+  }, [vaultPdaPreview, wallet, isBase, pair, marketAddress]);
 
 
   const sendBuilt = async (label: string, built: BuiltLocal) => {
@@ -107,7 +119,7 @@ export function AdminPanel({ wallet, showToast }: Props) {
           2
         )
       );
-      if (built.pdas.market) setMarket(built.pdas.market);
+      if (built.pdas.market) setMarketAddress(built.pdas.market);
       showToast(`${label}: ${signature.slice(0, 12)}…`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -148,20 +160,19 @@ export function AdminPanel({ wallet, showToast }: Props) {
             <label className="label">Trading pair</label>
             <select
               className="input"
-              value={pair.id}
-              onChange={(e) => {
-                const next = pairs.find((m) => m.id === e.target.value);
-                if (next) setPair(next);
-              }}
+              value={pair?.id ?? ""}
+              disabled={markets.length === 0}
+              onChange={(e) => onSelectMarket(e.target.value)}
             >
-              {pairs.map((m) => (
+              {markets.length === 0 && <option value="">Loading markets…</option>}
+              {markets.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.symbol}
                 </option>
               ))}
             </select>
             <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">
-              market PDA: {market || "—"}
+              market PDA: {marketAddress || "—"}
             </p>
           </div>
         </div>
@@ -183,8 +194,8 @@ export function AdminPanel({ wallet, showToast }: Props) {
             <label className="label">Market PDA</label>
             <input
               className="input font-mono text-xs"
-              value={market}
-              onChange={(e) => setMarket(e.target.value)}
+              value={marketAddress}
+              onChange={(e) => setMarketAddress(e.target.value)}
             />
             {vaultPdaPreview && (
               <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">
@@ -195,14 +206,14 @@ export function AdminPanel({ wallet, showToast }: Props) {
           <button
             type="button"
             className="btn-primary sm:col-span-2"
-            disabled={busy || !wallet || !market}
+            disabled={busy || !wallet || !marketAddress}
             onClick={() => {
-              if (!wallet || !market) return;
+              if (!wallet || !marketAddress) return;
               void sendBuilt(
                 "InitVault",
                 buildInitializeVault({
                   owner: new PublicKey(wallet),
-                  market: new PublicKey(market),
+                  market: new PublicKey(marketAddress),
                 })
               );
             }}
@@ -230,8 +241,8 @@ export function AdminPanel({ wallet, showToast }: Props) {
               value={isBase ? "base" : "quote"}
               onChange={(e) => setIsBase(e.target.value === "base")}
             >
-              <option value="quote">Quote ({pair.quoteSymbol})</option>
-              <option value="base">Base ({pair.baseSymbol})</option>
+              <option value="quote">Quote ({pair?.quoteSymbol ?? "—"})</option>
+              <option value="base">Base ({pair?.baseSymbol ?? "—"})</option>
             </select>
           </div>
           <div>
@@ -255,14 +266,14 @@ export function AdminPanel({ wallet, showToast }: Props) {
           <button
             type="button"
             className="btn-bid"
-            disabled={busy || !wallet || !userToken || !vaultToken || !market}
+            disabled={busy || !wallet || !userToken || !vaultToken || !marketAddress}
             onClick={() => {
-              if (!wallet || !market) return;
+              if (!wallet || !marketAddress) return;
               void sendBuilt(
                 "Deposit",
                 buildDeposit({
                   owner: new PublicKey(wallet),
-                  market: new PublicKey(market),
+                  market: new PublicKey(marketAddress),
                   userToken: new PublicKey(userToken),
                   vaultToken: new PublicKey(vaultToken),
                   amount: Number(amount),
@@ -276,14 +287,14 @@ export function AdminPanel({ wallet, showToast }: Props) {
           <button
             type="button"
             className="btn-ask"
-            disabled={busy || !wallet || !userToken || !vaultToken || !market}
+            disabled={busy || !wallet || !userToken || !vaultToken || !marketAddress}
             onClick={() => {
-              if (!wallet || !market) return;
+              if (!wallet || !marketAddress) return;
               void sendBuilt(
                 "Withdraw",
                 buildWithdraw({
                   owner: new PublicKey(wallet),
-                  market: new PublicKey(market),
+                  market: new PublicKey(marketAddress),
                   userToken: new PublicKey(userToken),
                   vaultToken: new PublicKey(vaultToken),
                   amount: Number(amount),

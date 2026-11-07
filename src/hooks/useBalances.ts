@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { rpcUrl } from "../api";
-import { DEFAULT_MARKET } from "../markets";
+import type { MarketPair } from "../markets";
 
 export type TokenBalance = {
   mint: string;
@@ -27,7 +27,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   return body.result as T;
 }
 
-export function useBalances(owner: string | null) {
+export function useBalances(owner: string | null, market: MarketPair | null) {
   const [state, setState] = useState<Balances>({
     sol: null,
     tokens: [],
@@ -78,11 +78,14 @@ export function useBalances(owner: string | null) {
         };
       });
 
-      const prefer = new Set([DEFAULT_MARKET.baseMint, DEFAULT_MARKET.quoteMint]);
-      tokens = [
-        ...tokens.filter((t) => prefer.has(t.mint)),
-        ...tokens.filter((t) => !prefer.has(t.mint)),
-      ];
+      // 当前选中市场的 base / quote 排前面，其余按原顺序
+      if (market) {
+        const prefer = new Set([market.baseMint, market.quoteMint]);
+        tokens = [
+          ...tokens.filter((t) => prefer.has(t.mint)),
+          ...tokens.filter((t) => !prefer.has(t.mint)),
+        ];
+      }
 
       setState({ sol, tokens, loading: false, error: null });
     } catch (e) {
@@ -93,7 +96,7 @@ export function useBalances(owner: string | null) {
         error: e instanceof Error ? e.message : String(e),
       });
     }
-  }, [owner]);
+  }, [owner, market]);
 
   useEffect(() => {
     void refresh();

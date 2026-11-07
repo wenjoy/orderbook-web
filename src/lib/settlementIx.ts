@@ -51,6 +51,15 @@ export function deriveUserVault(
   );
 }
 
+/**
+ * web3.js v1 的 `TransactionInstruction.data` 类型标注为 Node `Buffer`，
+ * 但运行时接受任意 `Uint8Array`（内部序列化用 `toBuffer()` 自行转换）。
+ * 浏览器环境不引入 Node Buffer，这里只在类型层面收窄，运行期零成本。
+ */
+export function ixData(bytes: Uint8Array): Buffer {
+  return bytes as unknown as Buffer;
+}
+
 function u64le(n: number | bigint): Uint8Array {
   const out = new Uint8Array(8);
   new DataView(out.buffer).setBigUint64(0, BigInt(n), true);
@@ -129,7 +138,7 @@ export function buildInitializeMarket(params: {
       { pubkey: params.quoteMint, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    data: packInitializeMarket(),
+    data: ixData(packInitializeMarket()),
   });
   return {
     name: "InitializeMarket",
@@ -154,7 +163,7 @@ export function buildInitializeVault(params: {
       { pubkey: vault, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    data: packInitializeVault(),
+    data: ixData(packInitializeVault()),
   });
   return {
     name: "InitializeVault",
@@ -189,7 +198,7 @@ export function buildDeposit(params: {
       { pubkey: params.vaultToken, isSigner: false, isWritable: true },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
-    data: packDeposit(params.amount, params.isBase),
+    data: ixData(packDeposit(params.amount, params.isBase)),
   });
   return {
     name: "Deposit",
@@ -220,7 +229,7 @@ export function buildWithdraw(params: {
       { pubkey: params.vaultToken, isSigner: false, isWritable: true },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
-    data: packWithdraw(params.amount, params.isBase),
+    data: ixData(packWithdraw(params.amount, params.isBase)),
   });
   return {
     name: "Withdraw",

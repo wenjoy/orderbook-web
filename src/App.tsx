@@ -1,5 +1,4 @@
-
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { Header } from "./components/Header";
 import { Orderbook } from "./components/Orderbook";
@@ -23,16 +22,27 @@ import type {
 } from "./types";
 import { deriveMarket, programId } from "./lib/settlementIx";
 import { PublicKey } from "@solana/web3.js";
-import { DEFAULT_MARKET } from "./markets";
+import type { MarketPair } from "./markets";
 import { ReadyPanel } from "./components/ReadyPanel";
 
 type Tab = "trade" | "admin";
 
 export default function App() {
   const wallet = useWallet();
-  const balances = useBalances(wallet.pubkey);
   const [tab, setTab] = useState<Tab>("trade");
   const [apiOk, setApiOk] = useState<boolean | null>(null);
+
+  // 市场列表来自后端，默认选中第一个
+  const [markets, setMarkets] = useState<MarketPair[]>([]);
+  const [marketId, setMarketId] = useState<string | null>(null);
+  const [marketsError, setMarketsError] = useState<string | null>(null);
+
+  const market = useMemo(
+    () => markets.find((m) => m.id === marketId) ?? null,
+    [markets, marketId]
+  );
+
+  const balances = useBalances(wallet.pubkey, market);
 
   const [bids, setBids] = useState<DepthLevel[]>([]);
   const [asks, setAsks] = useState<DepthLevel[]>([]);
@@ -67,9 +77,23 @@ export default function App() {
     }
   }, []);
 
+  const loadMarkets = useCallback(async () => {
+    try {
+      const pairs = await api.markets();
+      setMarkets(pairs);
+      setMarketsError(null);
+      setMarketId((prev) => prev ?? pairs[0]?.id ?? null);
+    } catch (e) {
+      setMarkets([]);
+      setMarketId(null);
+      setMarketsError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void loadMarkets();
+  }, [refresh, loadMarkets]);
 
   const onWs = useCallback((ev: WsEvent) => {
     switch (ev.type) {
@@ -126,17 +150,24 @@ export default function App() {
       showToast("Connect wallet to trade");
       throw new Error("Connect wallet to trade");
     }
+    if (!market) {
+      showToast("市场未就绪，请检查 /markets 接口");
+      throw new Error("Market not ready");
+    }
     setBusy(true);
     try {
       const user = wallet.pubkey;
 
-      const pair = DEFAULT_MARKET;
-      const [market] = deriveMarket(
+      const [marketPda] = deriveMarket(
         programId(),
-        new PublicKey(pair.baseMint),
-        new PublicKey(pair.quoteMint)
+        new PublicKey(market.baseMint),
+        new PublicKey(market.quoteMint)
       );
-      const res = await api.placeOrder({ ...p, user, market: market.toBase58() });
+      const res = await api.placeOrder({
+        ...p,
+        user,
+        market: marketPda.toBase58(),
+      });
       if (res.order_id != null && res.remaining != null && res.remaining > 0) {
         setOrders((prev) => [
           ...prev.filter((o) => o.id !== res.order_id),
@@ -186,6 +217,9 @@ export default function App() {
         wallet={wallet.pubkey}
         walletConnecting={wallet.connecting}
         hasPhantom={wallet.hasPhantom}
+        markets={markets}
+        marketId={marketId}
+        onMarketChange={setMarketId}
         onConnect={() => void wallet.connect()}
         onDisconnect={() => void wallet.disconnect()}
       />
@@ -193,6 +227,19 @@ export default function App() {
       {wallet.error && (
         <div className="bg-ask/20 px-4 py-2 text-center text-xs text-ask">
           {wallet.error}
+        </div>
+      )}
+
+      {marketsError && (
+        <div className="bg-ask/20 px-4 py-2 text-center text-xs text-ask">
+          获取市场失败：{marketsError}
+          <button
+            type="button"
+            className="ml-2 underline"
+            onClick={() => void loadMarkets()}
+          >
+            重试
+          </button>
         </div>
       )}
 
@@ -205,8 +252,20 @@ export default function App() {
       <main className="mx-auto max-w-7xl p-4">
         {tab === "admin" ? (
           <>
-            <ReadyPanel wallet={wallet.pubkey} showToast={showToast} />
-            <AdminPanel wallet={wallet.pubkey} showToast={showToast} />
+            <ReadyPanel
+              wallet={wallet.pubkey}
+              showToast={showToast}
+              markets={markets}
+              market={market}
+              onSelectMarket={setMarketId}
+            />
+            <AdminPanel
+              wallet={wallet.pubkey}
+              showToast={showToast}
+              markets={markets}
+              market={market}
+              onSelectMarket={setMarketId}
+            />
           </>
         ) : !wallet.connected ? (
           <div className="flex flex-col items-center justify-center gap-4 py-24">
@@ -231,10 +290,27 @@ export default function App() {
               或先打开 Admin 做链上准备
             </button>
           </div>
+        ) : !market ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-24">
+            <p className="text-lg font-medium">
+              {markets.length === 0 ? "正在加载市场…" : "请选择交易对"}
+            </p>
+            <p className="max-w-md text-center text-sm text-gray-500">
+              交易对来自后端 <span className="font-mono">GET /markets</span>，
+              选中后用于推导 Market PDA 与展示余额。
+            </p>
+            <button
+              type="button"
+              className="btn-ghost text-xs"
+              onClick={() => void loadMarkets()}
+            >
+              重新加载市场
+            </button>
+          </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-12">
             <div className="space-y-4 lg:col-span-3">
-              <BalancesPanel balances={balances} />
+              <BalancesPanel balances={balances} market={market} />
               <OrderFormControlled
                 user={wallet.pubkey!}
                 price={price}
@@ -267,4 +343,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -1,4 +1,6 @@
 
+import type { MarketPair } from "../markets";
+
 type Tab = "trade" | "admin";
 
 interface Props {
@@ -9,6 +11,9 @@ interface Props {
   wallet: string | null;
   walletConnecting: boolean;
   hasPhantom: boolean;
+  markets: MarketPair[];
+  marketId: string | null;
+  onMarketChange: (id: string) => void;
   onConnect: () => void;
   onDisconnect: () => void;
 }
@@ -21,6 +26,9 @@ export function Header({
   wallet,
   walletConnecting,
   hasPhantom,
+  markets,
+  marketId,
+  onMarketChange,
   onConnect,
   onDisconnect,
 }: Props) {
@@ -44,6 +52,23 @@ export function Header({
             Admin
           </TabBtn>
         </nav>
+
+        {markets.length > 0 ? (
+          <select
+            className="input w-auto max-w-[10rem] text-xs"
+            aria-label="Trading pair"
+            value={marketId ?? ""}
+            onChange={(e) => onMarketChange(e.target.value)}
+          >
+            {markets.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.symbol}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs text-gray-500">No markets</span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

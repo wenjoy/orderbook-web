@@ -1,19 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-declare global {
-  interface Window {
-    solana?: {
-      isPhantom?: boolean;
-      publicKey?: { toString: () => string };
-      connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{
-        publicKey: { toString: () => string };
-      }>;
-      disconnect: () => Promise<void>;
-      on?: (event: string, handler: () => void) => void;
-      off?: (event: string, handler: () => void) => void;
-    };
-  }
-}
+// window.solana 的全局声明只在 lib/walletSend.ts 里维护一份（含 signAndSendTransaction），
+// 这里直接复用，避免重复声明导致 TS2717。
 
 export function useWallet() {
   const [pubkey, setPubkey] = useState<string | null>(null);

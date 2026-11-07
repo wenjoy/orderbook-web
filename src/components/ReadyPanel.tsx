@@ -11,11 +11,13 @@ import {
   fetchReadyReport,
   type ReadyReport,
 } from "../lib/chainStatus";
-import { api } from "../api";
 
 type Props = {
   wallet: string | null;
   showToast: (m: string) => void;
+  markets: MarketPair[];
+  market: MarketPair | null;
+  onSelectMarket: (id: string) => void;
 };
 
 function Ok({ ok }: { ok: boolean }) {
@@ -48,17 +50,25 @@ function Row({
   );
 }
 
-export function ReadyPanel({ wallet, showToast }: Props) {
-  const [pairs, setPairs] = useState<MarketPair[]>([]);
-  const [pair, setPair] = useState<MarketPair>(pairs[0]);
+export function ReadyPanel({
+  wallet,
+  showToast,
+  markets,
+  market,
+  onSelectMarket,
+}: Props) {
   const [report, setReport] = useState<ReadyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (!market) {
+      setReport(null);
+      return;
+    }
     setLoading(true);
     try {
-      const r = await fetchReadyReport({ pair, wallet });
+      const r = await fetchReadyReport({ pair: market, wallet });
       setReport(r);
     } catch (e) {
       showToast(e instanceof Error ? e.message : String(e));
@@ -66,15 +76,12 @@ export function ReadyPanel({ wallet, showToast }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [pair, wallet, showToast]);
+  }, [market, wallet, showToast]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  useEffect(() => {
-    api.markets().then((pairs) => setPairs(pairs)).catch(err => console.error("fetch markets err", err))
-  }, [])
   const signIx = async (
     label: string,
     build: () => { ix: import("@solana/web3.js").TransactionInstruction }
@@ -142,13 +149,12 @@ export function ReadyPanel({ wallet, showToast }: Props) {
             <label className="label">Trading pair</label>
             <select
               className="input"
-              value={pair.id}
-              onChange={(e) => {
-                const n = pairs.find((m) => m.id === e.target.value);
-                if (n) setPair(n);
-              }}
+              value={market?.id ?? ""}
+              disabled={markets.length === 0}
+              onChange={(e) => onSelectMarket(e.target.value)}
             >
-              {pairs.map((m) => (
+              {markets.length === 0 && <option value="">Loading markets…</option>}
+              {markets.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.symbol}
                 </option>
@@ -243,13 +249,13 @@ export function ReadyPanel({ wallet, showToast }: Props) {
           <div className="panel">
             <div className="panel-title">4 · Token pair (mints)</div>
             <div className="px-3 pb-3">
-              <Row label={`Base ${pair.baseSymbol}`} ok={!!report.baseMint.isInitialized}>
+              <Row label={`Base ${market?.baseSymbol ?? "—"}`} ok={!!report.baseMint.isInitialized}>
                 {report.baseMint.address}
                 <br />
                 supply={report.baseMint.supply?.toString() ?? "—"} decimals=
                 {report.baseMint.decimals ?? "—"}
               </Row>
-              <Row label={`Quote ${pair.quoteSymbol}`} ok={!!report.quoteMint.isInitialized}>
+              <Row label={`Quote ${market?.quoteSymbol ?? "—"}`} ok={!!report.quoteMint.isInitialized}>
                 {report.quoteMint.address}
                 <br />
                 supply={report.quoteMint.supply?.toString() ?? "—"} decimals=
