@@ -163,6 +163,45 @@ function fmtAmount(amount: bigint | null, decimals: number | null): string | nul
   return `${whole}.${fracStr}`;
 }
 
+export type VaultStatus = {
+  /** user_vault PDA 地址 */
+  address: string;
+  /** 账户是否已上链 */
+  exists: boolean;
+  /** 已上链且 is_initialized = true */
+  initialized: boolean;
+};
+
+/**
+ * 轻量查询：只取用户的 vault PDA 账户（1 次 RPC），
+ * 用于 Trade 页判断是否需要引导用户「开户」。
+ */
+export async function fetchVaultStatus(params: {
+  wallet: string;
+  market: MarketPair;
+}): Promise<VaultStatus> {
+  const connection = new Connection(rpcUrl(), "confirmed");
+  const pid = programId();
+  const [marketPk] = deriveMarket(
+    pid,
+    new PublicKey(params.market.baseMint),
+    new PublicKey(params.market.quoteMint)
+  );
+  const [vaultPk] = deriveUserVault(pid, marketPk, new PublicKey(params.wallet));
+  const info = await fetchInfo(connection, vaultPk);
+
+  let initialized = false;
+  if (info.data && info.data.length >= 82) {
+    try {
+      initialized = decodeUserVault(info.data, encodePk).is_initialized;
+    } catch {
+      initialized = false;
+    }
+  }
+
+  return { address: vaultPk.toBase58(), exists: info.exists, initialized };
+}
+
 export async function fetchReadyReport(params: {
   pair: MarketPair;
   wallet: string | null;
@@ -312,7 +351,7 @@ export async function fetchReadyReport(params: {
       ? "先连接钱包"
       : vaultOk
         ? undefined
-        : "Admin → Initialize Vault（需先有 Market）",
+        : "回 Trade 页点击「开户」初始化 User Vault（需先有 Market）",
   });
 
   const walletOk =

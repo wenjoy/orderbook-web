@@ -45,8 +45,9 @@ export function BalancesPanel({
             {balances.tokens.length === 0 && (
               <p className="text-gray-500">No SPL token accounts</p>
             )}
-            {balances.tokens.map((t) => (
-              <div key={t.mint} className="flex justify-between gap-2">
+            {balances.tokens.map((t, i) => (
+              // 同一 mint 可能有多个 token account，不能用 mint 单独做 key
+              <div key={`${t.mint}-${i}`} className="flex justify-between gap-2">
                 <span className="text-gray-400" title={t.mint}>
                   {label(t.mint)}
                 </span>

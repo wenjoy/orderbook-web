@@ -24,6 +24,7 @@ import { deriveMarket, programId } from "./lib/settlementIx";
 import { PublicKey } from "@solana/web3.js";
 import type { MarketPair } from "./markets";
 import { ReadyPanel } from "./components/ReadyPanel";
+import { VaultOnboarding } from "./components/VaultOnboarding";
 
 type Tab = "trade" | "admin";
 
@@ -304,36 +305,43 @@ export default function App() {
             </button>
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-12">
-            <div className="space-y-4 lg:col-span-3">
-              <BalancesPanel balances={balances} market={market} />
-              <OrderFormControlled
-                user={wallet.pubkey!}
-                price={price}
-                setPrice={setPrice}
-                side={side}
-                setSide={setSide}
-                busy={busy}
-                onSubmit={placeOrder}
-              />
-              <OpenOrders orders={orders} user={wallet.pubkey!} onCancel={cancelOrder} />
+          <>
+            <VaultOnboarding
+              wallet={wallet.pubkey!}
+              market={market}
+              showToast={showToast}
+            />
+            <div className="grid gap-4 lg:grid-cols-12">
+              <div className="space-y-4 lg:col-span-3">
+                <BalancesPanel balances={balances} market={market} />
+                <OrderFormControlled
+                  user={wallet.pubkey!}
+                  price={price}
+                  setPrice={setPrice}
+                  side={side}
+                  setSide={setSide}
+                  busy={busy}
+                  onSubmit={placeOrder}
+                />
+                <OpenOrders orders={orders} user={wallet.pubkey!} onCancel={cancelOrder} />
+              </div>
+              <div className="space-y-4 lg:col-span-5">
+                <Orderbook
+                  bids={bids}
+                  asks={asks}
+                  onPriceClick={(p, s) => {
+                    setPrice(String(p));
+                    setSide(s);
+                  }}
+                />
+                <DepthChart bids={bids} asks={asks} />
+              </div>
+              <div className="space-y-4 lg:col-span-4">
+                <Trades trades={trades} />
+                <Settlements jobs={settlements} />
+              </div>
             </div>
-            <div className="space-y-4 lg:col-span-5">
-              <Orderbook
-                bids={bids}
-                asks={asks}
-                onPriceClick={(p, s) => {
-                  setPrice(String(p));
-                  setSide(s);
-                }}
-              />
-              <DepthChart bids={bids} asks={asks} />
-            </div>
-            <div className="space-y-4 lg:col-span-4">
-              <Trades trades={trades} />
-              <Settlements jobs={settlements} />
-            </div>
-          </div>
+          </>
         )}
       </main>
     </div>

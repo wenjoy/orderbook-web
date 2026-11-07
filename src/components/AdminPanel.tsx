@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { type MarketPair } from "../markets";
 import {
   buildDeposit,
-  buildInitializeVault,
   buildWithdraw,
   deriveMarket,
-  deriveUserVault,
   programId,
   type BuiltLocal,
 } from "../lib/settlementIx";
@@ -48,20 +46,6 @@ export function AdminPanel({ wallet, showToast, market: pair }: Props) {
     }
   }, [pair]);
 
-  const vaultPdaPreview = useMemo(() => {
-    if (!wallet || !marketAddress) return "";
-    try {
-      const [v] = deriveUserVault(
-        programId(),
-        new PublicKey(marketAddress),
-        new PublicKey(wallet)
-      );
-      return v.toBase58();
-    } catch {
-      return "";
-    }
-  }, [wallet, marketAddress]);
-
   useEffect(() => {
     if (!pair) {
       setUserToken("");
@@ -75,13 +59,13 @@ export function AdminPanel({ wallet, showToast, market: pair }: Props) {
       setUserToken(ata.toBase58());
     }
 
-    if (vaultPdaPreview) {
+    if (marketAddress) {
       const [ata] = PublicKey.findProgramAddressSync(
-        // [new PublicKey(vaultPdaPreview).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
+        // 托管 token 账户约定：owner = Market PDA
         [new PublicKey(marketAddress).toBuffer(), new PublicKey(TOKEN_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
       setVaultToken(ata.toBase58());
     }
-  }, [vaultPdaPreview, wallet, isBase, pair, marketAddress]);
+  }, [wallet, isBase, pair, marketAddress]);
 
 
   const sendBuilt = async (label: string, built: BuiltLocal) => {
@@ -155,52 +139,7 @@ export function AdminPanel({ wallet, showToast, market: pair }: Props) {
       </div>
 
       <div className="panel">
-        <div className="panel-title">2. InitializeVault</div>
-        <div className="grid gap-2 p-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="label">Owner = 当前钱包</label>
-            <input
-              className="input font-mono text-xs"
-              value={wallet ?? ""}
-              readOnly
-              placeholder="Connect wallet first"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Market PDA</label>
-            <input
-              className="input font-mono text-xs"
-              value={marketAddress}
-              onChange={(e) => setMarketAddress(e.target.value)}
-            />
-            {vaultPdaPreview && (
-              <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">
-                user_vault PDA: {vaultPdaPreview}
-              </p>
-            )}
-          </div>
-          <button
-            type="button"
-            className="btn-primary sm:col-span-2"
-            disabled={busy || !wallet || !marketAddress}
-            onClick={() => {
-              if (!wallet || !marketAddress) return;
-              void sendBuilt(
-                "InitVault",
-                buildInitializeVault({
-                  owner: new PublicKey(wallet),
-                  market: new PublicKey(marketAddress),
-                })
-              );
-            }}
-          >
-            Initialize Vault（钱包签名发送）
-          </button>
-        </div>
-      </div>
-
-      <div className="panel">
-        <div className="panel-title">3. Deposit / Withdraw</div>
+        <div className="panel-title">2. Deposit / Withdraw</div>
         <div className="grid gap-2 p-3 sm:grid-cols-2">
           <div>
             <label className="label">Amount</label>
