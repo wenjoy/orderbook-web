@@ -15,9 +15,7 @@ import {
 type Props = {
   wallet: string | null;
   showToast: (m: string) => void;
-  markets: MarketPair[];
   market: MarketPair | null;
-  onSelectMarket: (id: string) => void;
 };
 
 function Ok({ ok }: { ok: boolean }) {
@@ -50,13 +48,7 @@ function Row({
   );
 }
 
-export function ReadyPanel({
-  wallet,
-  showToast,
-  markets,
-  market,
-  onSelectMarket,
-}: Props) {
+export function ReadyPanel({ wallet, showToast, market }: Props) {
   const [report, setReport] = useState<ReadyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -147,19 +139,14 @@ export function ReadyPanel({
         <div className="space-y-2 p-3">
           <div>
             <label className="label">Trading pair</label>
-            <select
-              className="input"
-              value={market?.id ?? ""}
-              disabled={markets.length === 0}
-              onChange={(e) => onSelectMarket(e.target.value)}
-            >
-              {markets.length === 0 && <option value="">Loading markets…</option>}
-              {markets.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.symbol}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 rounded-md border border-surface-3 bg-surface px-3 py-2">
+              <span className="font-mono text-sm text-gray-200">
+                {market ? `${market.baseSymbol} / ${market.quoteSymbol}` : "—"}
+              </span>
+              <span className="text-[10px] text-gray-500">
+                （在顶部导航切换交易对）
+              </span>
+            </div>
           </div>
           {report && (
             <p

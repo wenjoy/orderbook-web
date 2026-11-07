@@ -255,16 +255,12 @@ export default function App() {
             <ReadyPanel
               wallet={wallet.pubkey}
               showToast={showToast}
-              markets={markets}
               market={market}
-              onSelectMarket={setMarketId}
             />
             <AdminPanel
               wallet={wallet.pubkey}
               showToast={showToast}
-              markets={markets}
               market={market}
-              onSelectMarket={setMarketId}
             />
           </>
         ) : !wallet.connected ? (

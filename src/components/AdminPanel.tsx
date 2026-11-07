@@ -15,22 +15,14 @@ import { signAndSendInstruction } from "../lib/walletSend";
 type Props = {
   wallet: string | null;
   showToast: (m: string) => void;
-  markets: MarketPair[];
   market: MarketPair | null;
-  onSelectMarket: (id: string) => void;
 };
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
 /** Admin：本地构造（web3.js v1 + Phantom） */
-export function AdminPanel({
-  wallet,
-  showToast,
-  markets,
-  market: pair,
-  onSelectMarket,
-}: Props) {
+export function AdminPanel({ wallet, showToast, market: pair }: Props) {
   const [marketAddress, setMarketAddress] = useState("");
   const [amount, setAmount] = useState("10");
   const [isBase, setIsBase] = useState(false);
@@ -158,19 +150,14 @@ export function AdminPanel({
         <div className="grid gap-2 p-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="label">Trading pair</label>
-            <select
-              className="input"
-              value={pair?.id ?? ""}
-              disabled={markets.length === 0}
-              onChange={(e) => onSelectMarket(e.target.value)}
-            >
-              {markets.length === 0 && <option value="">Loading markets…</option>}
-              {markets.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.symbol}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 rounded-md border border-surface-3 bg-surface px-3 py-2">
+              <span className="font-mono text-sm text-gray-200">
+                {pair ? `${pair.baseSymbol} / ${pair.quoteSymbol}` : "—"}
+              </span>
+              <span className="text-[10px] text-gray-500">
+                （在顶部导航切换交易对）
+              </span>
+            </div>
             <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">
               market PDA: {marketAddress || "—"}
             </p>

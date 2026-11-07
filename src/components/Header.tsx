@@ -1,4 +1,3 @@
-
 import type { MarketPair } from "../markets";
 
 type Tab = "trade" | "admin";
@@ -52,26 +51,17 @@ export function Header({
             Admin
           </TabBtn>
         </nav>
-
-        {markets.length > 0 ? (
-          <select
-            className="input w-auto max-w-[10rem] text-xs"
-            aria-label="Trading pair"
-            value={marketId ?? ""}
-            onChange={(e) => onMarketChange(e.target.value)}
-          >
-            {markets.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.symbol}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-xs text-gray-500">No markets</span>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        <MarketSelect
+          markets={markets}
+          marketId={marketId}
+          onChange={onMarketChange}
+        />
+
+        <span className="hidden h-5 w-px bg-surface-3 sm:block" aria-hidden />
+
         <StatusDot ok={apiOk} label="API" />
         <StatusDot ok={connected} label="WS" />
 
@@ -101,6 +91,59 @@ export function Header({
         )}
       </div>
     </header>
+  );
+}
+
+function MarketSelect({
+  markets,
+  marketId,
+  onChange,
+}: {
+  markets: MarketPair[];
+  marketId: string | null;
+  onChange: (id: string) => void;
+}) {
+  const current = markets.find((m) => m.id === marketId) ?? markets[0];
+
+  if (!current) {
+    return (
+      <span className="rounded-lg border border-dashed border-surface-3 px-2.5 py-1.5 text-xs text-gray-500">
+        No markets
+      </span>
+    );
+  }
+
+  return (
+    <div className="group relative flex items-center">
+      <select
+        aria-label="Trading pair"
+        className="cursor-pointer appearance-none rounded-lg border border-surface-3 bg-surface-2 py-1.5 pl-3 pr-8 text-xs font-medium text-gray-200 outline-none transition hover:border-gray-500 hover:bg-surface-3 focus:border-accent focus:ring-1 focus:ring-accent/30"
+        value={current.id}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {markets.map((m) => (
+          <option
+            key={m.id}
+            value={m.id}
+            className="bg-surface-1 text-gray-200"
+          >
+            {m.baseSymbol} / {m.quoteSymbol}
+          </option>
+        ))}
+      </select>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500 transition group-hover:text-gray-300"
+      >
+        <path d="M6 8l4 4 4-4" />
+      </svg>
+    </div>
   );
 }
 
@@ -134,4 +177,3 @@ function StatusDot({ ok, label }: { ok: boolean | null; label: string }) {
     </span>
   );
 }
-
