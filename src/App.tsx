@@ -7,8 +7,7 @@ import { Trades } from "./components/Trades";
 import { OpenOrders } from "./components/OpenOrders";
 import { Settlements } from "./components/Settlements";
 import { DepthChart } from "./components/DepthChart";
-import { AdminPanel } from "./components/AdminPanel";
-import { BalancesPanel } from "./components/Balances";
+import { HoldingOverview } from "./components/HoldingOverview";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useWallet } from "./hooks/useWallet";
 import { useBalances } from "./hooks/useBalances";
@@ -25,6 +24,7 @@ import { PublicKey } from "@solana/web3.js";
 import type { MarketPair } from "./markets";
 import { ReadyPanel } from "./components/ReadyPanel";
 import { VaultGate } from "./components/VaultGate";
+import { useVaultStatus } from "./hooks/useVaultStatus";
 
 type Tab = "trade" | "admin";
 
@@ -44,6 +44,7 @@ export default function App() {
   );
 
   const balances = useBalances(wallet.pubkey, market);
+  const vault = useVaultStatus(wallet.pubkey, market);
 
   const [bids, setBids] = useState<DepthLevel[]>([]);
   const [asks, setAsks] = useState<DepthLevel[]>([]);
@@ -141,6 +142,15 @@ export default function App() {
   }, []);
 
   const wsConnected = useWebSocket(onWs);
+
+  const handleOpenVault = async () => {
+    try {
+      const signature = await vault.open();
+      if (signature) showToast(`Account opened: ${signature.slice(0, 12)}…`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const placeOrder = async (p: {
     side: Side;
@@ -252,18 +262,11 @@ export default function App() {
 
       <main className="mx-auto max-w-7xl p-4">
         {tab === "admin" ? (
-          <>
-            <ReadyPanel
-              wallet={wallet.pubkey}
-              showToast={showToast}
-              market={market}
-            />
-            <AdminPanel
-              wallet={wallet.pubkey}
-              showToast={showToast}
-              market={market}
-            />
-          </>
+          <ReadyPanel
+            wallet={wallet.pubkey}
+            showToast={showToast}
+            market={market}
+          />
         ) : !wallet.connected ? (
           <div className="flex flex-col items-center justify-center gap-4 py-24">
             <p className="text-lg font-medium">Connect wallet to trade</p>
@@ -304,43 +307,57 @@ export default function App() {
               重新加载市场
             </button>
           </div>
-        ) : (
+        ) : vault.state !== "ready" ? (
           <VaultGate
-            wallet={wallet.pubkey!}
+            state={vault.state}
+            address={vault.vault.address}
+            error={vault.error}
+            busy={vault.busy}
             market={market}
-            showToast={showToast}
-          >
-            <div className="grid gap-4 lg:grid-cols-12">
-              <div className="space-y-4 lg:col-span-3">
-                <BalancesPanel balances={balances} market={market} />
-                <OrderFormControlled
-                  user={wallet.pubkey!}
-                  price={price}
-                  setPrice={setPrice}
-                  side={side}
-                  setSide={setSide}
-                  busy={busy}
-                  onSubmit={placeOrder}
-                />
-                <OpenOrders orders={orders} user={wallet.pubkey!} onCancel={cancelOrder} />
-              </div>
-              <div className="space-y-4 lg:col-span-5">
-                <Orderbook
-                  bids={bids}
-                  asks={asks}
-                  onPriceClick={(p, s) => {
-                    setPrice(String(p));
-                    setSide(s);
-                  }}
-                />
-                <DepthChart bids={bids} asks={asks} />
-              </div>
-              <div className="space-y-4 lg:col-span-4">
-                <Trades trades={trades} />
-                <Settlements jobs={settlements} />
-              </div>
+            onOpen={() => void handleOpenVault()}
+            onRetry={() => void vault.check()}
+          />
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-12">
+            <div className="space-y-4 lg:col-span-3">
+              <HoldingOverview
+                balances={balances}
+                market={market}
+                wallet={wallet.pubkey!}
+                vault={vault.vault}
+                showToast={showToast}
+                onDone={() => {
+                  void balances.refresh();
+                  void vault.check({ silent: true });
+                }}
+              />
+              <OrderFormControlled
+                user={wallet.pubkey!}
+                price={price}
+                setPrice={setPrice}
+                side={side}
+                setSide={setSide}
+                busy={busy}
+                onSubmit={placeOrder}
+              />
+              <OpenOrders orders={orders} user={wallet.pubkey!} onCancel={cancelOrder} />
             </div>
-          </VaultGate>
+            <div className="space-y-4 lg:col-span-5">
+              <Orderbook
+                bids={bids}
+                asks={asks}
+                onPriceClick={(p, s) => {
+                  setPrice(String(p));
+                  setSide(s);
+                }}
+              />
+              <DepthChart bids={bids} asks={asks} />
+            </div>
+            <div className="space-y-4 lg:col-span-4">
+              <Trades trades={trades} />
+              <Settlements jobs={settlements} />
+            </div>
+          </div>
         )}
       </main>
     </div>

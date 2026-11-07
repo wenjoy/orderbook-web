@@ -1,36 +1,29 @@
-import type { ReactNode } from "react";
 import type { MarketPair } from "../markets";
-import { useVaultStatus } from "../hooks/useVaultStatus";
+import type { VaultState } from "../hooks/useVaultStatus";
 
 type Props = {
-  wallet: string;
+  state: VaultState;
+  address: string;
+  error: string | null;
+  busy: boolean;
   market: MarketPair;
-  showToast: (m: string) => void;
-  children: ReactNode;
+  onOpen: () => void;
+  onRetry: () => void;
 };
 
 /**
- * Trade 页开户闸门：
- * 未开户时只渲染开户页，不渲染任何交易界面；
- * 链上确认已开户后才渲染 children（交易界面）。
+ * 开户闸门（纯展示）：
+ * 未开户时只渲染开户页；状态为 ready 时由调用方直接渲染交易界面。
  */
-export function VaultGate({ wallet, market, showToast, children }: Props) {
-  const { state, address, error, busy, open, check } = useVaultStatus(
-    wallet,
-    market
-  );
-
-  const handleOpen = async () => {
-    try {
-      const signature = await open();
-      if (signature) showToast(`Account opened: ${signature.slice(0, 12)}…`);
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  if (state === "ready") return <>{children}</>;
-
+export function VaultGate({
+  state,
+  address,
+  error,
+  busy,
+  market,
+  onOpen,
+  onRetry,
+}: Props) {
   if (state === "idle" || state === "checking") {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24">
@@ -53,7 +46,7 @@ export function VaultGate({ wallet, market, showToast, children }: Props) {
           <button
             type="button"
             className="btn-ghost mt-4 text-xs"
-            onClick={() => void check()}
+            onClick={onRetry}
           >
             Retry
           </button>
@@ -98,7 +91,7 @@ export function VaultGate({ wallet, market, showToast, children }: Props) {
           type="button"
           className="btn-primary mt-6 w-full sm:w-auto sm:px-10"
           disabled={busy}
-          onClick={() => void handleOpen()}
+          onClick={onOpen}
         >
           {busy ? "Opening…" : "Open Account"}
         </button>

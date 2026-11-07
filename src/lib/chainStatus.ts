@@ -170,11 +170,17 @@ export type VaultStatus = {
   exists: boolean;
   /** 已上链且 is_initialized = true */
   initialized: boolean;
+  /** 金库内的 base / quote 余额（最小单位） */
+  baseBalance: bigint;
+  quoteBalance: bigint;
+  /** base / quote mint 精度，用于展示与金额换算 */
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
 };
 
 /**
- * 轻量查询：只取用户的 vault PDA 账户（1 次 RPC），
- * 用于 Trade 页判断是否需要引导用户「开户」。
+ * 查询当前钱包在当前交易对下的 vault 状态与余额。
+ * 用于 Trade 页判断是否需要开户，以及展示金库余额。
  */
 export async function fetchVaultStatus(params: {
   wallet: string;
@@ -182,24 +188,47 @@ export async function fetchVaultStatus(params: {
 }): Promise<VaultStatus> {
   const connection = new Connection(rpcUrl(), "confirmed");
   const pid = programId();
-  const [marketPk] = deriveMarket(
-    pid,
-    new PublicKey(params.market.baseMint),
-    new PublicKey(params.market.quoteMint)
-  );
+  const baseMintPk = new PublicKey(params.market.baseMint);
+  const quoteMintPk = new PublicKey(params.market.quoteMint);
+  const [marketPk] = deriveMarket(pid, baseMintPk, quoteMintPk);
   const [vaultPk] = deriveUserVault(pid, marketPk, new PublicKey(params.wallet));
-  const info = await fetchInfo(connection, vaultPk);
+
+  const [vaultInfo, baseMintInfo, quoteMintInfo] = await Promise.all([
+    fetchInfo(connection, vaultPk),
+    fetchInfo(connection, baseMintPk),
+    fetchInfo(connection, quoteMintPk),
+  ]);
 
   let initialized = false;
-  if (info.data && info.data.length >= 82) {
+  let baseBalance = 0n;
+  let quoteBalance = 0n;
+  if (vaultInfo.data && vaultInfo.data.length >= 82) {
     try {
-      initialized = decodeUserVault(info.data, encodePk).is_initialized;
+      const decoded = decodeUserVault(vaultInfo.data, encodePk);
+      initialized = decoded.is_initialized;
+      baseBalance = decoded.base_balance;
+      quoteBalance = decoded.quote_balance;
     } catch {
       initialized = false;
     }
   }
 
-  return { address: vaultPk.toBase58(), exists: info.exists, initialized };
+  const baseDecimals = baseMintInfo.data
+    ? decodeMintSupply(baseMintInfo.data)?.decimals ?? null
+    : null;
+  const quoteDecimals = quoteMintInfo.data
+    ? decodeMintSupply(quoteMintInfo.data)?.decimals ?? null
+    : null;
+
+  return {
+    address: vaultPk.toBase58(),
+    exists: vaultInfo.exists,
+    initialized,
+    baseBalance,
+    quoteBalance,
+    baseDecimals,
+    quoteDecimals,
+  };
 }
 
 export async function fetchReadyReport(params: {
