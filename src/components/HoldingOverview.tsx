@@ -44,9 +44,22 @@ export function HoldingOverview({
   const symbol = isBase ? market.baseSymbol : market.quoteSymbol;
   const mint = isBase ? market.baseMint : market.quoteMint;
   const decimals = isBase ? vault.baseDecimals : vault.quoteDecimals;
-  const walletToken = balances.tokens.find((t) => t.mint === mint);
-  const available =
-    walletToken?.uiAmount != null ? String(walletToken.uiAmount) : "0";
+  // 钱包里该 mint 的所有 token account 之和（可能有多条）
+  const walletRaw = balances.tokens
+    .filter((t) => t.mint === mint)
+    .reduce((acc, t) => {
+      try {
+        return acc + BigInt(t.amount);
+      } catch {
+        return acc;
+      }
+    }, 0n);
+  const vaultRaw = isBase ? vault.baseBalance : vault.quoteBalance;
+
+  // 输入换算成最小单位后，分别与「可充值 / 可提现」上限比较
+  const parsedRaw = decimals == null ? null : parseUnits(amount, decimals);
+  const depositExceeds = parsedRaw != null && parsedRaw > walletRaw;
+  const withdrawExceeds = parsedRaw != null && parsedRaw > vaultRaw;
 
   const label = (m: string) => {
     if (market.baseMint === m) return market.baseSymbol;
@@ -71,6 +84,14 @@ export function HoldingOverview({
     }
     if (raw <= 0n) {
       setError("Amount must be greater than 0");
+      return;
+    }
+    const cap = kind === "deposit" ? walletRaw : vaultRaw;
+    if (raw > cap) {
+      setError(
+        `${kind === "deposit" ? "Insufficient wallet balance" : "Insufficient trading account balance"}: ` +
+          `need ${formatUnits(raw, decimals)} ${symbol}, available ${formatUnits(cap, decimals)} ${symbol}`
+      );
       return;
     }
 
@@ -205,14 +226,30 @@ export function HoldingOverview({
           </select>
         </div>
         <p className="text-[10px] text-gray-500">
-          Available in wallet: {available} {symbol}
+          Deposit max:{" "}
+          <span className="font-mono">{formatUnits(walletRaw, decimals)}</span>{" "}
+          {symbol} · Withdraw max:{" "}
+          <span className="font-mono">{formatUnits(vaultRaw, decimals)}</span>{" "}
+          {symbol}
         </p>
+        {depositExceeds && (
+          <p className="text-[10px] text-ask break-all">
+            Exceeds wallet balance — deposit max{" "}
+            {formatUnits(walletRaw, decimals)} {symbol}
+          </p>
+        )}
+        {withdrawExceeds && (
+          <p className="text-[10px] text-ask break-all">
+            Exceeds trading account balance — withdraw max{" "}
+            {formatUnits(vaultRaw, decimals)} {symbol}
+          </p>
+        )}
         {error && <p className="text-[10px] text-ask break-all">{error}</p>}
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             className="btn-bid text-xs"
-            disabled={busy !== null || !amount.trim()}
+            disabled={busy !== null || !amount.trim() || depositExceeds}
             onClick={() => void submit("deposit")}
           >
             {busy === "deposit" ? "Depositing…" : "Deposit"}
@@ -220,7 +257,7 @@ export function HoldingOverview({
           <button
             type="button"
             className="btn-ask text-xs"
-            disabled={busy !== null || !amount.trim()}
+            disabled={busy !== null || !amount.trim() || withdrawExceeds}
             onClick={() => void submit("withdraw")}
           >
             {busy === "withdraw" ? "Withdrawing…" : "Withdraw"}

@@ -32,63 +32,65 @@ export function Header({
   onDisconnect,
 }: Props) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-3 bg-surface-1 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent/20 font-mono text-sm font-bold text-accent">
-          OB
-        </div>
-        <div>
-          <h1 className="text-sm font-semibold tracking-tight">CLOB Demo</h1>
-          <p className="text-xs text-gray-500">
-            Matching off-chain · Settlement on-chain
-          </p>
-        </div>
-        <nav className="ml-4 flex gap-1 rounded-lg bg-surface-2 p-0.5">
-          <TabBtn active={tab === "trade"} onClick={() => onTab("trade")}>
-            Trade
-          </TabBtn>
-          <TabBtn active={tab === "admin"} onClick={() => onTab("admin")}>
-            Admin
-          </TabBtn>
-        </nav>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <MarketSelect
-          markets={markets}
-          marketId={marketId}
-          onChange={onMarketChange}
-        />
-
-        <span className="hidden h-5 w-px bg-surface-3 sm:block" aria-hidden />
-
-        <StatusDot ok={apiOk} label="API" />
-        <StatusDot ok={connected} label="WS" />
-
-        {wallet ? (
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-surface-2 px-2 py-1 font-mono text-xs text-accent">
-              {wallet.slice(0, 4)}…{wallet.slice(-4)}
-            </span>
-            <button type="button" className="btn-ghost text-xs" onClick={onDisconnect}>
-              Disconnect
-            </button>
+    <header className="border-b border-surface-3 bg-surface-1">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent/20 font-mono text-sm font-bold text-accent">
+            OB
           </div>
-        ) : (
-          <button
-            type="button"
-            className="btn-primary text-xs"
-            disabled={walletConnecting || !hasPhantom}
-            onClick={onConnect}
-            title={!hasPhantom ? "Install Phantom" : undefined}
-          >
-            {walletConnecting
-              ? "Connecting…"
-              : hasPhantom
-                ? "Connect Wallet"
-                : "Install Phantom"}
-          </button>
-        )}
+          <div>
+            <h1 className="text-sm font-semibold tracking-tight">CLOB Demo</h1>
+            <p className="text-xs text-gray-500">
+              Matching off-chain · Settlement on-chain
+            </p>
+          </div>
+          <nav className="ml-4 flex gap-1 rounded-lg bg-surface-2 p-0.5">
+            <TabBtn active={tab === "trade"} onClick={() => onTab("trade")}>
+              Trade
+            </TabBtn>
+            <TabBtn active={tab === "admin"} onClick={() => onTab("admin")}>
+              Admin
+            </TabBtn>
+          </nav>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <MarketSelect
+            markets={markets}
+            marketId={marketId}
+            onChange={onMarketChange}
+          />
+
+          <span className="hidden h-5 w-px bg-surface-3 sm:block" aria-hidden />
+
+          <StatusDot ok={apiOk} label="API" />
+          <StatusDot ok={connected} label="WS" />
+
+          {wallet ? (
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-surface-2 px-2 py-1 font-mono text-xs text-accent">
+                {wallet.slice(0, 4)}…{wallet.slice(-4)}
+              </span>
+              <button type="button" className="btn-ghost text-xs" onClick={onDisconnect}>
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary text-xs"
+              disabled={walletConnecting || !hasPhantom}
+              onClick={onConnect}
+              title={!hasPhantom ? "Install Phantom" : undefined}
+            >
+              {walletConnecting
+                ? "Connecting…"
+                : hasPhantom
+                  ? "Connect Wallet"
+                  : "Install Phantom"}
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
