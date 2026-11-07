@@ -137,17 +137,6 @@ export function ReadyPanel({ wallet, showToast, market }: Props) {
           </button>
         </div>
         <div className="space-y-2 p-3">
-          <div>
-            <label className="label">Trading pair</label>
-            <div className="flex items-center gap-2 rounded-md border border-surface-3 bg-surface px-3 py-2">
-              <span className="font-mono text-sm text-gray-200">
-                {market ? `${market.baseSymbol} / ${market.quoteSymbol}` : "—"}
-              </span>
-              <span className="text-[10px] text-gray-500">
-                （在顶部导航切换交易对）
-              </span>
-            </div>
-          </div>
           {report && (
             <p
               className={`text-sm font-medium ${report.tradeReady ? "text-bid" : "text-ask"
@@ -234,7 +223,7 @@ export function ReadyPanel({ wallet, showToast, market }: Props) {
           </div>
 
           <div className="panel">
-            <div className="panel-title">4 · Token pair (mints)</div>
+            <div className="panel-title">4 · Mints (base / quote)</div>
             <div className="px-3 pb-3">
               <Row label={`Base ${market?.baseSymbol ?? "—"}`} ok={!!report.baseMint.isInitialized}>
                 {report.baseMint.address}

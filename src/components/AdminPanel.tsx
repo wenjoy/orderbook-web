@@ -147,21 +147,10 @@ export function AdminPanel({ wallet, showToast, market: pair }: Props) {
 
       <div className="panel">
         <div className="panel-title">1. InitializeMarket</div>
-        <div className="grid gap-2 p-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="label">Trading pair</label>
-            <div className="flex items-center gap-2 rounded-md border border-surface-3 bg-surface px-3 py-2">
-              <span className="font-mono text-sm text-gray-200">
-                {pair ? `${pair.baseSymbol} / ${pair.quoteSymbol}` : "—"}
-              </span>
-              <span className="text-[10px] text-gray-500">
-                （在顶部导航切换交易对）
-              </span>
-            </div>
-            <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">
-              market PDA: {marketAddress || "—"}
-            </p>
-          </div>
+        <div className="p-3">
+          <p className="font-mono text-[10px] text-gray-500 break-all">
+            market PDA: {marketAddress || "—"}
+          </p>
         </div>
       </div>
 
