@@ -166,13 +166,13 @@ export function HoldingOverview({
           Trading account
         </p>
         <div className="flex justify-between">
-          <span className="text-gray-400">{market.baseSymbol}</span>
+          <span className="text-gray-400">Base</span>
           <span className="font-mono">
             {formatUnits(vault.baseBalance, vault.baseDecimals)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">{market.quoteSymbol}</span>
+          <span className="text-gray-400">Quote</span>
           <span className="font-mono">
             {formatUnits(vault.quoteBalance, vault.quoteDecimals)}
           </span>

@@ -46,6 +46,10 @@ export default function App() {
   const balances = useBalances(wallet.pubkey, market);
   const vault = useVaultStatus(wallet.pubkey, market);
 
+  // 交易账户可用余额（人类单位），用于下单校验
+  const maxBase = toHuman(vault.vault.baseBalance, vault.vault.baseDecimals);
+  const maxQuote = toHuman(vault.vault.quoteBalance, vault.vault.quoteDecimals);
+
   const [bids, setBids] = useState<DepthLevel[]>([]);
   const [asks, setAsks] = useState<DepthLevel[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -339,6 +343,8 @@ export default function App() {
                 setSide={setSide}
                 busy={busy}
                 onSubmit={placeOrder}
+                maxBase={maxBase}
+                maxQuote={maxQuote}
               />
               <OpenOrders orders={orders} user={wallet.pubkey!} onCancel={cancelOrder} />
             </div>
@@ -362,4 +368,10 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+/** 最小单位 → 人类单位；精度未知时返回 null（跳过校验） */
+function toHuman(amount: bigint, decimals: number | null): number | null {
+  if (decimals == null) return null;
+  return Number(amount) / 10 ** decimals;
 }
