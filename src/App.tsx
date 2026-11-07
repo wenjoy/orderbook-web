@@ -24,7 +24,7 @@ import { deriveMarket, programId } from "./lib/settlementIx";
 import { PublicKey } from "@solana/web3.js";
 import type { MarketPair } from "./markets";
 import { ReadyPanel } from "./components/ReadyPanel";
-import { VaultOnboarding } from "./components/VaultOnboarding";
+import { VaultGate } from "./components/VaultGate";
 
 type Tab = "trade" | "admin";
 
@@ -305,12 +305,11 @@ export default function App() {
             </button>
           </div>
         ) : (
-          <>
-            <VaultOnboarding
-              wallet={wallet.pubkey!}
-              market={market}
-              showToast={showToast}
-            />
+          <VaultGate
+            wallet={wallet.pubkey!}
+            market={market}
+            showToast={showToast}
+          >
             <div className="grid gap-4 lg:grid-cols-12">
               <div className="space-y-4 lg:col-span-3">
                 <BalancesPanel balances={balances} market={market} />
@@ -341,7 +340,7 @@ export default function App() {
                 <Settlements jobs={settlements} />
               </div>
             </div>
-          </>
+          </VaultGate>
         )}
       </main>
     </div>

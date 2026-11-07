@@ -351,7 +351,7 @@ export async function fetchReadyReport(params: {
       ? "先连接钱包"
       : vaultOk
         ? undefined
-        : "回 Trade 页点击「开户」初始化 User Vault（需先有 Market）",
+        : "回 Trade 页点击「Open Account」初始化 User Vault（需先有 Market）",
   });
 
   const walletOk =
