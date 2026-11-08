@@ -54,6 +54,20 @@ export const api = {
   markets: () =>
     json<ApiMarket[]>("/markets").then((rows) => rows.map(toMarketPair)),
 
+  listOrders: (user?: string) => {
+    const q = user ? `?user=${encodeURIComponent(user)}` : "";
+    return json<
+      {
+        id: number;
+        side: Side;
+        price: number;
+        quantity: number;
+        remaining: number;
+        user: string;
+      }[]
+    >(`/orders${q}`);
+  },
+
   placeOrder: (body: {
     side: Side;
     price: number;

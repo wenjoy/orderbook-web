@@ -68,15 +68,17 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [ob, tr, st] = await Promise.all([
+      const [ob, tr, st, open] = await Promise.all([
         api.orderbook(),
         api.trades(),
         api.settlements(30),
+        api.listOrders()
       ]);
       setBids(ob.bids);
       setAsks(ob.asks);
       setTrades(tr);
       setSettlements(st);
+      setOpenOrders(open);
       setApiOk(true);
     } catch {
       setApiOk(false);
