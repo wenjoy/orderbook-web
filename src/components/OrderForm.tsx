@@ -116,9 +116,8 @@ export function OrderFormControlled({
                 value={s}
                 checked={side === s}
                 onChange={() => setSide(s)}
-                className={`h-3.5 w-3.5 cursor-pointer ${
-                  s === "Bid" ? "accent-[#3fb950]" : "accent-[#f85149]"
-                }`}
+                className={`h-3.5 w-3.5 cursor-pointer ${s === "Bid" ? "accent-[#3fb950]" : "accent-[#f85149]"
+                  }`}
               />
               <span
                 className={
@@ -141,6 +140,7 @@ export function OrderFormControlled({
             className="input"
             value={price}
             type="number"
+            min="0.01"
             onChange={(e) => setPrice(e.target.value)}
           />
         </div>
