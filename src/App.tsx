@@ -143,6 +143,7 @@ export default function App() {
           return prev;
         });
         void api.settlements(30).then(setSettlements).catch(() => { });
+        refresh();
         break;
     }
   }, []);
