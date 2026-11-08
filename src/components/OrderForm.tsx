@@ -140,7 +140,7 @@ export function OrderFormControlled({
             className="input"
             value={price}
             type="number"
-            min="0.01"
+            min="0"
             onChange={(e) => setPrice(e.target.value)}
           />
         </div>
