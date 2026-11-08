@@ -44,22 +44,22 @@ export function Header({
               Matching off-chain · Settlement on-chain
             </p>
           </div>
-          <nav className="ml-4 flex gap-1 rounded-lg bg-surface-2 p-0.5">
-            <TabBtn active={tab === "trade"} onClick={() => onTab("trade")}>
-              Trade
-            </TabBtn>
-            <TabBtn active={tab === "admin"} onClick={() => onTab("admin")}>
-              Admin
-            </TabBtn>
-          </nav>
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
+        <nav className="flex gap-3 rounded-lg bg-surface-2 p-0.5">
+          <TabBtn active={tab === "trade"} onClick={() => onTab("trade")}>
+            Trade
+          </TabBtn>
+          <TabBtn active={tab === "admin"} onClick={() => onTab("admin")}>
+            Admin
+          </TabBtn>
           <MarketSelect
             markets={markets}
             marketId={marketId}
             onChange={onMarketChange}
           />
+        </nav>
+
+        <div className="flex flex-wrap items-center gap-3">
 
           <span className="hidden h-5 w-px bg-surface-3 sm:block" aria-hidden />
 
