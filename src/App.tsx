@@ -53,7 +53,7 @@ export default function App() {
   const [bids, setBids] = useState<DepthLevel[]>([]);
   const [asks, setAsks] = useState<DepthLevel[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [orders, setOrders] = useState<LocalOrder[]>([]);
+  const [openOrders, setOpenOrders] = useState<LocalOrder[]>([]);
   const [settlements, setSettlements] = useState<SettlementJob[]>([]);
 
   const [side, setSide] = useState<Side>("Bid");
@@ -111,7 +111,7 @@ export default function App() {
         setTrades((prev) => [...prev, ev.data].slice(-200));
         break;
       case "OrderPlaced":
-        setOrders((prev) => {
+        setOpenOrders((prev) => {
           const next = prev.filter((o) => o.id !== ev.data.order_id);
           next.push({
             id: ev.data.order_id,
@@ -124,7 +124,7 @@ export default function App() {
         });
         break;
       case "OrderCancelled":
-        setOrders((prev) => prev.filter((o) => o.id !== ev.data.order_id));
+        setOpenOrders((prev) => prev.filter((o) => o.id !== ev.data.order_id));
         break;
       case "SettlementUpdate":
         setSettlements((prev) => {
@@ -184,7 +184,7 @@ export default function App() {
         market: marketPda.toBase58(),
       });
       if (res.order_id != null && res.remaining != null && res.remaining > 0) {
-        setOrders((prev) => [
+        setOpenOrders((prev) => [
           ...prev.filter((o) => o.id !== res.order_id),
           {
             id: res.order_id!,
@@ -218,7 +218,7 @@ export default function App() {
 
   const cancelOrder = async (id: number) => {
     await api.cancelOrder(id);
-    setOrders((prev) => prev.filter((o) => o.id !== id));
+    setOpenOrders((prev) => prev.filter((o) => o.id !== id));
     await refresh();
   };
 
@@ -346,7 +346,7 @@ export default function App() {
                 maxBase={maxBase}
                 maxQuote={maxQuote}
               />
-              <OpenOrders orders={orders} user={wallet.pubkey!} onCancel={cancelOrder} />
+              <OpenOrders orders={openOrders} user={wallet.pubkey!} onCancel={cancelOrder} />
             </div>
             <div className="space-y-4 lg:col-span-5">
               <Orderbook
