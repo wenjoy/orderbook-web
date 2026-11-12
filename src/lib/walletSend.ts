@@ -35,6 +35,16 @@ export type WalletSendResult = {
 export async function signAndSendInstruction(
   ix: TransactionInstruction
 ): Promise<WalletSendResult> {
+  return signAndSendInstructions([ix]);
+}
+
+/**
+ * 一次签名发送多笔指令（例如同时创建 base / quote 两个 ATA）。
+ * 会先本地模拟，模拟失败直接抛错，避免把注定失败的交易丢给钱包。
+ */
+export async function signAndSendInstructions(
+  ixs: TransactionInstruction[]
+): Promise<WalletSendResult> {
   const provider = window.solana;
   if (!provider?.isPhantom || !provider.publicKey) {
     throw new Error("Connect Phantom wallet first");
@@ -42,9 +52,14 @@ export async function signAndSendInstruction(
   if (typeof provider.signAndSendTransaction !== "function") {
     throw new Error("Wallet does not support signAndSendTransaction");
   }
+  if (ixs.length === 0) {
+    throw new Error("Nothing to send");
+  }
 
   const feePayer = new PublicKey(provider.publicKey.toString());
-  const required = ix.keys.filter((k) => k.isSigner).map((k) => k.pubkey.toBase58());
+  const required = ixs
+    .flatMap((ix) => ix.keys.filter((k) => k.isSigner))
+    .map((k) => k.pubkey.toBase58());
   if (required.length && !required.includes(feePayer.toBase58())) {
     throw new Error(
       `Connected wallet is not the required signer (need ${required
@@ -61,34 +76,24 @@ export async function signAndSendInstruction(
     feePayer,
     blockhash,
     lastValidBlockHeight,
-  }).add(ix);
+  }).add(...ixs);
 
-  let ready = true;
-  // 假设 transaction 是你构建好的交易对象
+  // 先在本地模拟：失败时把程序日志拼进错误信息，方便定位
   try {
-    // 手动进行模拟，开启日志输出
     const simulation = await connection.simulateTransaction(tx);
-
-    console.log("🔍 模拟结果:", simulation);
-
     if (simulation.value.err) {
-      console.error("❌ 模拟失败，程序错误:", simulation.value.err);
-      // 这里通常会打印出具体的 ProgramError，例如 custom program error: 0x...
-      console.error("📜 程序日志:", simulation.value.logs);
-      ready = false;
-    } else {
-      console.log("✅ 模拟成功，交易逻辑本身没有问题");
+      const logs = simulation.value.logs?.join("\n") ?? "";
+      throw new Error(
+        `Simulation failed: ${JSON.stringify(simulation.value.err)}` +
+          (logs ? `\nlogs:\n${logs}` : "")
+      );
     }
-  } catch (simError) {
-    console.error("模拟过程本身出错:", simError);
-    ready = false;
+  } catch (e) {
+    if (e instanceof Error) throw e;
+    throw new Error(`Simulation failed: ${String(e)}`);
   }
 
-  if (!ready) {
-    throw ("simuation error, stop submit")
-  }
   const { signature } = await provider.signAndSendTransaction(tx);
-  console.log("signature", signature);
 
   let confirmation;
   try {

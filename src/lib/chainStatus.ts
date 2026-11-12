@@ -163,71 +163,143 @@ function fmtAmount(amount: bigint | null, decimals: number | null): string | nul
   return `${whole}.${fracStr}`;
 }
 
-export type VaultStatus = {
-  /** user_vault PDA 地址 */
+export type SetupAta = {
+  /** ATA 地址（由 owner + mint 推导，账户不存在时也能给出） */
   address: string;
-  /** 账户是否已上链 */
+  /** 是否已在链上创建 */
   exists: boolean;
-  /** 已上链且 is_initialized = true */
-  initialized: boolean;
-  /** 金库内的 base / quote 余额（最小单位） */
+  /** 已创建时的余额（最小单位），未创建为 null */
+  amount: bigint | null;
+};
+
+/**
+ * 开户前的分步状态：
+ * 1. `solOk`            — 钱包 SOL 足够支付租金与手续费
+ * 2. `atasOk`           — base / quote ATA 都已创建
+ * 3. `vaultInitialized` — 交易账户（UserVault）已开户
+ */
+export type AccountSetup = {
+  /** 钱包当前 SOL 余额（lamports） */
+  solLamports: number;
+  /** 走完剩余步骤所需的最低 lamports（租金 + 手续费） */
+  requiredLamports: number;
+  solOk: boolean;
+
+  baseAta: SetupAta;
+  quoteAta: SetupAta;
+  atasOk: boolean;
+
+  baseMintInitialized: boolean;
+  quoteMintInitialized: boolean;
+
+  vaultAddress: string;
+  vaultInitialized: boolean;
   baseBalance: bigint;
   quoteBalance: bigint;
-  /** base / quote mint 精度，用于展示与金额换算 */
+
   baseDecimals: number | null;
   quoteDecimals: number | null;
 };
 
+/** SPL token account 固定大小 */
+const TOKEN_ACCOUNT_SIZE = 165;
+/** UserVault: bool + owner + market + base + quote + bump = 82 bytes */
+const USER_VAULT_SIZE = 82;
+/** 单笔交易签名费上限，保守估算 */
+const FEE_PER_TX = 5_000;
+
 /**
- * 查询当前钱包在当前交易对下的 vault 状态与余额。
- * 用于 Trade 页判断是否需要开户，以及展示金库余额。
+ * 查询开户三步所需状态：SOL 余额、钱包 ATA、UserVault。
+ * 同时估算「完成剩余步骤」所需的最低 SOL，用于第一步的门槛判断。
  */
-export async function fetchVaultStatus(params: {
+export async function fetchAccountSetup(params: {
   wallet: string;
   market: MarketPair;
-}): Promise<VaultStatus> {
+}): Promise<AccountSetup> {
   const connection = new Connection(rpcUrl(), "confirmed");
   const pid = programId();
+  const walletPk = new PublicKey(params.wallet);
   const baseMintPk = new PublicKey(params.market.baseMint);
   const quoteMintPk = new PublicKey(params.market.quoteMint);
   const [marketPk] = deriveMarket(pid, baseMintPk, quoteMintPk);
-  const [vaultPk] = deriveUserVault(pid, marketPk, new PublicKey(params.wallet));
+  const [vaultPk] = deriveUserVault(pid, marketPk, walletPk);
+  const baseAtaPk = getAssociatedTokenAddress(walletPk, baseMintPk);
+  const quoteAtaPk = getAssociatedTokenAddress(walletPk, quoteMintPk);
 
-  const [vaultInfo, baseMintInfo, quoteMintInfo] = await Promise.all([
-    fetchInfo(connection, vaultPk),
+  const [
+    solLamports,
+    baseMintInfo,
+    quoteMintInfo,
+    baseAtaInfo,
+    quoteAtaInfo,
+    vaultInfo,
+    ataRent,
+    vaultRent,
+  ] = await Promise.all([
+    connection.getBalance(walletPk, "confirmed"),
     fetchInfo(connection, baseMintPk),
     fetchInfo(connection, quoteMintPk),
+    fetchInfo(connection, baseAtaPk),
+    fetchInfo(connection, quoteAtaPk),
+    fetchInfo(connection, vaultPk),
+    connection.getMinimumBalanceForRentExemption(TOKEN_ACCOUNT_SIZE),
+    connection.getMinimumBalanceForRentExemption(USER_VAULT_SIZE),
   ]);
 
-  let initialized = false;
+  const baseMintDecoded = baseMintInfo.data
+    ? decodeMintSupply(baseMintInfo.data)
+    : null;
+  const quoteMintDecoded = quoteMintInfo.data
+    ? decodeMintSupply(quoteMintInfo.data)
+    : null;
+
+  const baseAta: SetupAta = {
+    address: baseAtaPk.toBase58(),
+    exists: baseAtaInfo.exists,
+    amount: baseAtaInfo.data ? decodeTokenAmount(baseAtaInfo.data) : null,
+  };
+  const quoteAta: SetupAta = {
+    address: quoteAtaPk.toBase58(),
+    exists: quoteAtaInfo.exists,
+    amount: quoteAtaInfo.data ? decodeTokenAmount(quoteAtaInfo.data) : null,
+  };
+
+  let vaultInitialized = false;
   let baseBalance = 0n;
   let quoteBalance = 0n;
-  if (vaultInfo.data && vaultInfo.data.length >= 82) {
+  if (vaultInfo.data && vaultInfo.data.length >= USER_VAULT_SIZE) {
     try {
       const decoded = decodeUserVault(vaultInfo.data, encodePk);
-      initialized = decoded.is_initialized;
+      vaultInitialized = decoded.is_initialized;
       baseBalance = decoded.base_balance;
       quoteBalance = decoded.quote_balance;
     } catch {
-      initialized = false;
+      vaultInitialized = false;
     }
   }
 
-  const baseDecimals = baseMintInfo.data
-    ? decodeMintSupply(baseMintInfo.data)?.decimals ?? null
-    : null;
-  const quoteDecimals = quoteMintInfo.data
-    ? decodeMintSupply(quoteMintInfo.data)?.decimals ?? null
-    : null;
+  // 只为「还没创建」的账户预留租金；手续费按两次交易（建 ATA / 开户）估算
+  const missingAtas = (baseAta.exists ? 0 : 1) + (quoteAta.exists ? 0 : 1);
+  const requiredLamports =
+    missingAtas * ataRent +
+    (vaultInitialized ? 0 : vaultRent) +
+    FEE_PER_TX * 2;
 
   return {
-    address: vaultPk.toBase58(),
-    exists: vaultInfo.exists,
-    initialized,
+    solLamports,
+    requiredLamports,
+    solOk: solLamports >= requiredLamports,
+    baseAta,
+    quoteAta,
+    atasOk: baseAta.exists && quoteAta.exists,
+    baseMintInitialized: Boolean(baseMintDecoded?.isInitialized),
+    quoteMintInitialized: Boolean(quoteMintDecoded?.isInitialized),
+    vaultAddress: vaultPk.toBase58(),
+    vaultInitialized,
     baseBalance,
     quoteBalance,
-    baseDecimals,
-    quoteDecimals,
+    baseDecimals: baseMintDecoded?.decimals ?? null,
+    quoteDecimals: quoteMintDecoded?.decimals ?? null,
   };
 }
 

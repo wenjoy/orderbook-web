@@ -1,0 +1,216 @@
+import { useCallback, useEffect, useState } from "react";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { rpcUrl } from "../api";
+import type { MarketPair } from "../markets";
+import {
+  buildInitializeVault,
+  deriveMarket,
+  programId,
+} from "../lib/settlementIx";
+import {
+  signAndSendInstruction,
+  signAndSendInstructions,
+} from "../lib/walletSend";
+import {
+  createAssociatedTokenAccountIdempotentIx,
+  fetchAccountSetup,
+  type AccountSetup,
+} from "../lib/chainStatus";
+
+/**
+ * idle      — 还没连接钱包 / 没选市场
+ * checking  — 正在查链上状态
+ * missing   — 未开户，需要走「三步引导」
+ * ready     — 已开户，可以交易
+ * error     — 查询失败
+ */
+export type AccountState = "idle" | "checking" | "missing" | "ready" | "error";
+
+/** 正在进行的动作，用于禁用按钮与展示 loading 文案 */
+export type AccountAction = "atas" | "vault" | "airdrop" | null;
+
+export type VaultData = {
+  address: string;
+  baseBalance: bigint;
+  quoteBalance: bigint;
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
+};
+
+const EMPTY_VAULT: VaultData = {
+  address: "",
+  baseBalance: 0n,
+  quoteBalance: 0n,
+  baseDecimals: null,
+  quoteDecimals: null,
+};
+
+/**
+ * 交易账户状态 + 开户前置条件（SOL / ATA / UserVault）。
+ *
+ * 三步引导的数据来源都在这里：
+ *   1. setup.solOk            钱包有足够的 SOL 支付租金与手续费
+ *   2. setup.atasOk           base / quote ATA 已创建（createAtas 补齐）
+ *   3. setup.vaultInitialized 交易账户已开户（open 开户）
+ */
+export function useTradingAccount(
+  wallet: string | null,
+  market: MarketPair | null
+) {
+  const [state, setState] = useState<AccountState>("idle");
+  const [setup, setSetup] = useState<AccountSetup | null>(null);
+  const [vault, setVault] = useState<VaultData>(EMPTY_VAULT);
+  const [error, setError] = useState<string | null>(null);
+  const [action, setAction] = useState<AccountAction>(null);
+
+  /**
+   * silent = true 时不切到 checking，用于签名成功后的静默刷新，
+   * 避免交易界面被整页 loading 顶掉。
+   */
+  const check = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!wallet || !market) {
+        setState("idle");
+        setSetup(null);
+        setVault(EMPTY_VAULT);
+        return;
+      }
+      if (!opts?.silent) setState("checking");
+      setError(null);
+      try {
+        const next = await fetchAccountSetup({ wallet, market });
+        setSetup(next);
+        setVault({
+          address: next.vaultAddress,
+          baseBalance: next.baseBalance,
+          quoteBalance: next.quoteBalance,
+          baseDecimals: next.baseDecimals,
+          quoteDecimals: next.quoteDecimals,
+        });
+        setState(next.vaultInitialized ? "ready" : "missing");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        if (!opts?.silent) setState("error");
+      }
+    },
+    [wallet, market]
+  );
+
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  /** 第 2 步：创建缺失的钱包 ATA（base / quote 可合并在一次签名里） */
+  const createAtas = useCallback(async (): Promise<string | null> => {
+    if (!wallet || !market) return null;
+    setAction("atas");
+    setError(null);
+    try {
+      const payer = new PublicKey(wallet);
+      // 以链上最新状态为准，避免按钮状态过期导致重复创建
+      const current = await fetchAccountSetup({ wallet, market });
+      setSetup(current);
+
+      const ixs = [];
+      if (!current.baseAta.exists) {
+        ixs.push(
+          createAssociatedTokenAccountIdempotentIx({
+            payer,
+            owner: payer,
+            mint: new PublicKey(market.baseMint),
+          })
+        );
+      }
+      if (!current.quoteAta.exists) {
+        ixs.push(
+          createAssociatedTokenAccountIdempotentIx({
+            payer,
+            owner: payer,
+            mint: new PublicKey(market.quoteMint),
+          })
+        );
+      }
+      if (ixs.length === 0) {
+        await check({ silent: true });
+        return null;
+      }
+
+      const { signature } = await signAndSendInstructions(ixs);
+      await check({ silent: true });
+      return signature;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      throw e instanceof Error ? e : new Error(msg);
+    } finally {
+      setAction(null);
+    }
+  }, [wallet, market, check]);
+
+  /** 第 3 步：开户（InitializeVault）；成功后 state 变为 ready */
+  const open = useCallback(async (): Promise<string | null> => {
+    if (!wallet || !market) return null;
+    setAction("vault");
+    setError(null);
+    try {
+      const [marketPk] = deriveMarket(
+        programId(),
+        new PublicKey(market.baseMint),
+        new PublicKey(market.quoteMint)
+      );
+      const built = buildInitializeVault({
+        owner: new PublicKey(wallet),
+        market: marketPk,
+      });
+      const { signature } = await signAndSendInstruction(built.ix);
+      // 以链上状态为准：确认已初始化后才放行交易界面
+      await check();
+      return signature;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      throw e instanceof Error ? e : new Error(msg);
+    } finally {
+      setAction(null);
+    }
+  }, [wallet, market, check]);
+
+  /** 本地验证节点 / devnet 上的一键领水，仅用于开发调试 */
+  const airdrop = useCallback(
+    async (sol = 1) => {
+      if (!wallet) return;
+      setAction("airdrop");
+      setError(null);
+      try {
+        const connection = new Connection(rpcUrl(), "confirmed");
+        const signature = await connection.requestAirdrop(
+          new PublicKey(wallet),
+          Math.round(sol * 1e9)
+        );
+        await connection.confirmTransaction(signature, "confirmed");
+        await check({ silent: true });
+        return signature;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        throw e instanceof Error ? e : new Error(msg);
+      } finally {
+        setAction(null);
+      }
+    },
+    [wallet, check]
+  );
+
+  return {
+    state,
+    setup,
+    vault,
+    error,
+    action,
+    busy: action !== null,
+    check,
+    createAtas,
+    open,
+    airdrop,
+  };
+}

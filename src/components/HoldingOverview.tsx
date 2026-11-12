@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import type { Balances } from "../hooks/useBalances";
-import type { VaultData } from "../hooks/useVaultStatus";
+import type { VaultData } from "../hooks/useTradingAccount";
 import type { MarketPair } from "../markets";
 import { formatUnits, parseUnits } from "../lib/amount";
 import { getAssociatedTokenAddress } from "../lib/chainStatus";

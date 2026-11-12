@@ -23,8 +23,8 @@ import { deriveMarket, programId } from "./lib/settlementIx";
 import { PublicKey } from "@solana/web3.js";
 import type { MarketPair } from "./markets";
 import { ReadyPanel } from "./components/ReadyPanel";
-import { VaultGate } from "./components/VaultGate";
-import { useVaultStatus } from "./hooks/useVaultStatus";
+import { AccountSetup } from "./components/AccountSetup";
+import { useTradingAccount } from "./hooks/useTradingAccount";
 
 type Tab = "trade" | "admin";
 
@@ -44,11 +44,11 @@ export default function App() {
   );
 
   const balances = useBalances(wallet.pubkey, market);
-  const vault = useVaultStatus(wallet.pubkey, market);
+  const account = useTradingAccount(wallet.pubkey, market);
 
   // 交易账户可用余额（人类单位），用于下单校验
-  const maxBase = toHuman(vault.vault.baseBalance, vault.vault.baseDecimals);
-  const maxQuote = toHuman(vault.vault.quoteBalance, vault.vault.quoteDecimals);
+  const maxBase = toHuman(account.vault.baseBalance, account.vault.baseDecimals);
+  const maxQuote = toHuman(account.vault.quoteBalance, account.vault.quoteDecimals);
 
   const [bids, setBids] = useState<DepthLevel[]>([]);
   const [asks, setAsks] = useState<DepthLevel[]>([]);
@@ -150,9 +150,27 @@ export default function App() {
 
   const wsConnected = useWebSocket(onWs);
 
+  const handleCreateAtas = async () => {
+    try {
+      const signature = await account.createAtas();
+      if (signature) showToast(`Token accounts created: ${signature.slice(0, 12)}…`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleAirdrop = async () => {
+    try {
+      const signature = await account.airdrop(1);
+      if (signature) showToast(`Airdrop: ${signature.slice(0, 12)}…`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const handleOpenVault = async () => {
     try {
-      const signature = await vault.open();
+      const signature = await account.open();
       if (signature) showToast(`Account opened: ${signature.slice(0, 12)}…`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : String(e));
@@ -314,15 +332,20 @@ export default function App() {
               重新加载市场
             </button>
           </div>
-        ) : vault.state !== "ready" ? (
-          <VaultGate
-            state={vault.state}
-            address={vault.vault.address}
-            error={vault.error}
-            busy={vault.busy}
+        ) : account.state !== "ready" ? (
+          <AccountSetup
+            state={account.state}
+            setup={account.setup}
+            error={account.error}
+            action={account.action}
             market={market}
+            onRefresh={() =>
+              // 已进入引导页时静默刷新，避免整页 loading 闪一下
+              void account.check({ silent: account.state === "missing" })
+            }
+            onCreateAtas={() => void handleCreateAtas()}
             onOpen={() => void handleOpenVault()}
-            onRetry={() => void vault.check()}
+            onAirdrop={() => void handleAirdrop()}
           />
         ) : (
           <div className="grid gap-4 lg:grid-cols-12">
@@ -331,11 +354,11 @@ export default function App() {
                 balances={balances}
                 market={market}
                 wallet={wallet.pubkey!}
-                vault={vault.vault}
+                vault={account.vault}
                 showToast={showToast}
                 onDone={() => {
                   void balances.refresh();
-                  void vault.check({ silent: true });
+                  void account.check({ silent: true });
                 }}
               />
               <OrderFormControlled
