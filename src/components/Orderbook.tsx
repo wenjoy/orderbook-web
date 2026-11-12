@@ -21,7 +21,7 @@ export function Orderbook({ bids, asks, onPriceClick }: Props) {
       : bids[0]?.price?.toFixed(2) ?? asks[0]?.price?.toFixed(2) ?? "—";
 
   return (
-    <div className="panel flex h-full flex-col overflow-hidden">
+    <div className="panel flex h-fit flex-col overflow-hidden">
       <div className="panel-title flex justify-between">
         <span>Order Book</span>
         <span className="font-mono normal-case text-gray-500">mid {mid}</span>

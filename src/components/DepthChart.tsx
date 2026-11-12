@@ -17,7 +17,7 @@ export function DepthChart({ bids, asks }: Props) {
   const topAsks = asks.slice(0, levels);
 
   return (
-    <div className="panel">
+    <div className="panel flex h-fit flex-col overflow-hidden">
       <div className="panel-title">Depth</div>
       <div className="grid grid-cols-2 gap-2 p-3">
         <div className="space-y-1">

@@ -10,7 +10,7 @@ export function OpenOrders({ orders, user, onCancel }: Props) {
   const mine = orders.filter((o) => o.user === user && o.remaining > 0);
 
   return (
-    <div className="panel flex h-full flex-col overflow-hidden">
+    <div className="panel flex h-fit flex-col overflow-hidden">
       <div className="panel-title">Open Orders · {user || "—"}</div>
       <div className="flex-1 overflow-y-auto font-mono text-xs">
         {mine.length === 0 && (
