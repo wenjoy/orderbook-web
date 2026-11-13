@@ -2,7 +2,7 @@ import type { AccountAction, AccountState } from "../hooks/useTradingAccount";
 import type { AccountSetup as Setup } from "../lib/chainStatus";
 import type { MarketPair } from "../markets";
 import { formatUnits } from "../lib/amount";
-import { rpcUrl } from "../api";
+import { FAUCET_AMOUNTS, faucetUrl, rpcUrl } from "../api";
 
 type Props = {
   state: AccountState;
@@ -12,6 +12,7 @@ type Props = {
   market: MarketPair;
   onRefresh: () => void;
   onCreateAtas: () => void;
+  onRequestTokens: () => void;
   onOpen: () => void;
   onAirdrop: () => void;
 };
@@ -117,6 +118,7 @@ export function AccountSetup({
   market,
   onRefresh,
   onCreateAtas,
+  onRequestTokens,
   onOpen,
   onAirdrop,
 }: Props) {
@@ -158,9 +160,14 @@ export function AccountSetup({
     : setup.solOk
       ? "active"
       : "locked";
-  const step3: StepStatus = setup.vaultInitialized
+  const step3: StepStatus = setup.fundedOk
     ? "done"
     : setup.solOk && setup.atasOk
+      ? "active"
+      : "locked";
+  const step4: StepStatus = setup.vaultInitialized
+    ? "done"
+    : setup.solOk && setup.atasOk && setup.fundedOk
       ? "active"
       : "locked";
 
@@ -172,9 +179,13 @@ export function AccountSetup({
     setup.quoteAta.amount ?? 0n,
     setup.quoteDecimals
   );
+  const baseZero = (setup.baseAta.amount ?? 0n) === 0n;
+  const quoteZero = (setup.quoteAta.amount ?? 0n) === 0n;
 
   // 仅本地验证节点 / devnet 提供一键领水
   const canAirdrop = /127\.0\.0\.1|localhost|devnet/.test(rpcUrl());
+  // 水龙头地址未配置时按钮置灰，等 VITE_FAUCET_URL 填好即可用
+  const hasFaucet = faucetUrl().length > 0;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -183,7 +194,7 @@ export function AccountSetup({
           Open your trading account
         </h2>
         <p className="mx-auto mt-1 max-w-sm text-sm text-gray-400">
-          {market.baseSymbol} / {market.quoteSymbol} · 依次完成以下 3 步后即可交易。
+          {market.baseSymbol} / {market.quoteSymbol} · 依次完成以下 4 步后即可交易。
         </p>
       </div>
 
@@ -277,24 +288,72 @@ export function AccountSetup({
         </div>
       </Step>
 
-      {/* 3 · UserVault */}
-      <Step index={3} title="Open trading account" status={step3}>
+      {/* 3 · 代币余额 */}
+      <Step index={3} title="Fund token accounts" status={step3}>
+        <p>
+          两个 ATA 的余额都不能为零，否则开户后也无法充值、下单。
+        </p>
+        <div className="space-y-1 rounded-md bg-surface-2/60 px-3 py-2 font-mono text-[11px]">
+          <div className="flex justify-between">
+            <span className="text-gray-500">{market.baseSymbol}</span>
+            <span className={baseZero ? "text-ask" : "text-bid"}>
+              {baseBalance} {baseZero && "(zero)"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">{market.quoteSymbol}</span>
+            <span className={quoteZero ? "text-ask" : "text-bid"}>
+              {quoteBalance} {quoteZero && "(zero)"}
+            </span>
+          </div>
+        </div>
+        {step3 === "locked" && (
+          <p className="text-[11px] text-gray-500">先完成第 1、2 步。</p>
+        )}
+        {!hasFaucet && (
+          <p className="text-[11px] text-gray-500">
+            Faucet 未配置：设置 VITE_FAUCET_URL 后按钮即可使用。
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <button
+            type="button"
+            className="btn-ghost text-xs"
+            disabled={
+              busy || step3 !== "active" || !hasFaucet || setup.fundedOk
+            }
+            onClick={onRequestTokens}
+          >
+            {action === "faucet"
+              ? "Requesting…"
+              : setup.fundedOk
+                ? "Tokens received"
+                : `Request ${FAUCET_AMOUNTS.base} ${market.baseSymbol} + ${FAUCET_AMOUNTS.quote} ${market.quoteSymbol}`}
+          </button>
+          <span className="text-[10px] text-gray-500">
+            由 faucet 服务签名铸币，无需钱包签名。
+          </span>
+        </div>
+      </Step>
+
+      {/* 4 · UserVault */}
+      <Step index={4} title="Open trading account" status={step4}>
         <p>
           最后一步：在你的钱包与当前交易对下创建 User Vault，之后才能充值、下单和结算。
         </p>
         <p className="font-mono text-[10px] text-gray-600 break-all">
           vault PDA: {setup.vaultAddress || "—"}
         </p>
-        {step3 === "locked" && (
+        {step4 === "locked" && (
           <p className="text-[11px] text-gray-500">
-            先完成第 1、2 步。
+            先完成第 1、2、3 步。
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             type="button"
             className="btn-primary text-xs"
-            disabled={busy || step3 !== "active"}
+            disabled={busy || step4 !== "active"}
             onClick={onOpen}
           >
             {action === "vault" ? "Opening…" : "Open trading account"}

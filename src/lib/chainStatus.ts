@@ -176,7 +176,8 @@ export type SetupAta = {
  * 开户前的分步状态：
  * 1. `solOk`            — 钱包 SOL 足够支付租金与手续费
  * 2. `atasOk`           — base / quote ATA 都已创建
- * 3. `vaultInitialized` — 交易账户（UserVault）已开户
+ * 3. `fundedOk`         — 两个 ATA 的余额都不为零（否则开户后也没法交易）
+ * 4. `vaultInitialized` — 交易账户（UserVault）已开户
  */
 export type AccountSetup = {
   /** 钱包当前 SOL 余额（lamports） */
@@ -188,6 +189,8 @@ export type AccountSetup = {
   baseAta: SetupAta;
   quoteAta: SetupAta;
   atasOk: boolean;
+  /** 两个 ATA 余额都 > 0 */
+  fundedOk: boolean;
 
   baseMintInitialized: boolean;
   quoteMintInitialized: boolean;
@@ -292,6 +295,7 @@ export async function fetchAccountSetup(params: {
     baseAta,
     quoteAta,
     atasOk: baseAta.exists && quoteAta.exists,
+    fundedOk: (baseAta.amount ?? 0n) > 0n && (quoteAta.amount ?? 0n) > 0n,
     baseMintInitialized: Boolean(baseMintDecoded?.isInitialized),
     quoteMintInitialized: Boolean(quoteMintDecoded?.isInitialized),
     vaultAddress: vaultPk.toBase58(),

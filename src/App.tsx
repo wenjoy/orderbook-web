@@ -159,6 +159,17 @@ export default function App() {
     }
   };
 
+  const handleRequestTokens = async () => {
+    try {
+      const signature = await account.requestTokens();
+      showToast(
+        signature ? `Tokens received: ${signature.slice(0, 12)}…` : "Faucet request sent"
+      );
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const handleAirdrop = async () => {
     try {
       const signature = await account.airdrop(1);
@@ -344,6 +355,7 @@ export default function App() {
               void account.check({ silent: account.state === "missing" })
             }
             onCreateAtas={() => void handleCreateAtas()}
+            onRequestTokens={() => void handleRequestTokens()}
             onOpen={() => void handleOpenVault()}
             onAirdrop={() => void handleAirdrop()}
           />

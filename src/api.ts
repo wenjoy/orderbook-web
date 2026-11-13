@@ -44,6 +44,67 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** 水龙头每次领取的数量（人类单位） */
+export const FAUCET_AMOUNTS = { base: 100, quote: 1000 } as const;
+
+/** 水龙头地址；未配置时返回空字符串（按钮置灰） */
+export function faucetUrl(): string {
+  return ((import.meta.env.VITE_FAUCET_URL as string | undefined) ?? "").trim();
+}
+
+export type FaucetResult = {
+  signature?: string | null;
+};
+
+/**
+ * 请求水龙头给钱包的 base / quote ATA 铸币。
+ * 默认约定：POST VITE_FAUCET_URL，body 为 snake_case 的 owner / *_mint / *_amount。
+ */
+export async function requestFaucet(body: {
+  owner: string;
+  base_mint: string;
+  quote_mint: string;
+  base_amount: number;
+  quote_amount: number;
+}): Promise<FaucetResult> {
+  const url = faucetUrl();
+  if (!url) {
+    throw new Error("Faucet is not configured (set VITE_FAUCET_URL)");
+  }
+  if (body.base_amount <= 0 || body.quote_amount <= 0) {
+    throw new Error("Faucet amounts must be greater than 0");
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    /* 有些 faucet 直接返回纯文本签名 */
+  }
+
+  if (!res.ok) {
+    const msg =
+      parsed && typeof parsed === "object" && "error" in parsed
+        ? String((parsed as { error: unknown }).error)
+        : text.trim() || res.statusText;
+    throw new Error(msg || `Faucet request failed (${res.status})`);
+  }
+
+  if (parsed && typeof parsed === "object") {
+    const out = parsed as Record<string, unknown>;
+    const sig = out.signature ?? out.tx ?? out.transaction;
+    return { signature: typeof sig === "string" ? sig : null };
+  }
+  return { signature: text.trim() || null };
+}
+
 export const api = {
   health: () => json<string>("/health").catch(() => "error"),
 

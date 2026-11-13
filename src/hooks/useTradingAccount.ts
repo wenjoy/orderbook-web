@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { rpcUrl } from "../api";
+import { FAUCET_AMOUNTS, requestFaucet, rpcUrl } from "../api";
 import type { MarketPair } from "../markets";
 import {
   buildInitializeVault,
@@ -27,7 +27,7 @@ import {
 export type AccountState = "idle" | "checking" | "missing" | "ready" | "error";
 
 /** 正在进行的动作，用于禁用按钮与展示 loading 文案 */
-export type AccountAction = "atas" | "vault" | "airdrop" | null;
+export type AccountAction = "atas" | "faucet" | "vault" | "airdrop" | null;
 
 export type VaultData = {
   address: string;
@@ -46,12 +46,13 @@ const EMPTY_VAULT: VaultData = {
 };
 
 /**
- * 交易账户状态 + 开户前置条件（SOL / ATA / UserVault）。
+ * 交易账户状态 + 开户前置条件（SOL / ATA / 代币余额 / UserVault）。
  *
- * 三步引导的数据来源都在这里：
+ * 分步引导的数据来源都在这里：
  *   1. setup.solOk            钱包有足够的 SOL 支付租金与手续费
  *   2. setup.atasOk           base / quote ATA 已创建（createAtas 补齐）
- *   3. setup.vaultInitialized 交易账户已开户（open 开户）
+ *   3. setup.fundedOk         两个 ATA 余额都不为零（requestTokens 领水）
+ *   4. setup.vaultInitialized 交易账户已开户（open 开户）
  */
 export function useTradingAccount(
   wallet: string | null,
@@ -147,7 +148,32 @@ export function useTradingAccount(
     }
   }, [wallet, market, check]);
 
-  /** 第 3 步：开户（InitializeVault）；成功后 state 变为 ready */
+  /** 第 3 步：向水龙头领取 base / quote 代币到钱包 ATA */
+  const requestTokens = useCallback(async (): Promise<string | null> => {
+    if (!wallet || !market) return null;
+    setAction("faucet");
+    setError(null);
+    try {
+      const res = await requestFaucet({
+        owner: wallet,
+        base_mint: market.baseMint,
+        quote_mint: market.quoteMint,
+        base_amount: FAUCET_AMOUNTS.base,
+        quote_amount: FAUCET_AMOUNTS.quote,
+      });
+      // 领水结果以链上余额为准
+      await check({ silent: true });
+      return res.signature ?? null;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      throw e instanceof Error ? e : new Error(msg);
+    } finally {
+      setAction(null);
+    }
+  }, [wallet, market, check]);
+
+  /** 第 4 步：开户（InitializeVault）；成功后 state 变为 ready */
   const open = useCallback(async (): Promise<string | null> => {
     if (!wallet || !market) return null;
     setAction("vault");
@@ -210,6 +236,7 @@ export function useTradingAccount(
     busy: action !== null,
     check,
     createAtas,
+    requestTokens,
     open,
     airdrop,
   };
