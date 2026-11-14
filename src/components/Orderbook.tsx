@@ -1,12 +1,22 @@
 import type { DepthLevel } from "../types";
+import { formatPrice, formatQty } from "../lib/amount";
 
 interface Props {
   bids: DepthLevel[];
   asks: DepthLevel[];
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
   onPriceClick?: (price: number, side: "Bid" | "Ask") => void;
 }
 
-export function Orderbook({ bids, asks, onPriceClick }: Props) {
+export function Orderbook({
+  bids,
+  asks,
+  baseDecimals,
+  quoteDecimals,
+  onPriceClick,
+}: Props) {
+  // 同市场内所有档位单位一致，直接比较原始数量即可
   const maxQty = Math.max(
     1,
     ...bids.map((l) => l.quantity),
@@ -15,10 +25,12 @@ export function Orderbook({ bids, asks, onPriceClick }: Props) {
 
   // asks: low→high in data; display high→low (top of book near mid)
   const asksDesc = [...asks].reverse();
+  const bestBid = bids[0] ? Number(formatPrice(bids[0].price, baseDecimals, quoteDecimals)) : null;
+  const bestAsk = asks[0] ? Number(formatPrice(asks[0].price, baseDecimals, quoteDecimals)) : null;
   const mid =
-    bids[0] && asks[0]
-      ? ((bids[0].price + asks[0].price) / 2).toFixed(2)
-      : bids[0]?.price?.toFixed(2) ?? asks[0]?.price?.toFixed(2) ?? "—";
+    bestBid != null && bestAsk != null
+      ? ((bestBid + bestAsk) / 2).toFixed(2)
+      : bestBid?.toFixed(2) ?? bestAsk?.toFixed(2) ?? "—";
 
   return (
     <div className="panel flex h-fit flex-col overflow-hidden">
@@ -45,7 +57,9 @@ export function Orderbook({ bids, asks, onPriceClick }: Props) {
               level={l}
               side="Ask"
               maxQty={maxQty}
-              onClick={() => onPriceClick?.(l.price, "Ask")}
+              baseDecimals={baseDecimals}
+              quoteDecimals={quoteDecimals}
+              onClick={() => onPriceClick?.(Number(formatPrice(l.price, baseDecimals, quoteDecimals)), "Ask")}
             />
           ))}
         </div>
@@ -65,7 +79,9 @@ export function Orderbook({ bids, asks, onPriceClick }: Props) {
               level={l}
               side="Bid"
               maxQty={maxQty}
-              onClick={() => onPriceClick?.(l.price, "Bid")}
+              baseDecimals={baseDecimals}
+              quoteDecimals={quoteDecimals}
+              onClick={() => onPriceClick?.(Number(formatPrice(l.price, baseDecimals, quoteDecimals)), "Bid")}
             />
           ))}
         </div>
@@ -78,11 +94,15 @@ function Row({
   level,
   side,
   maxQty,
+  baseDecimals,
+  quoteDecimals,
   onClick,
 }: {
   level: DepthLevel;
   side: "Bid" | "Ask";
   maxQty: number;
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
   onClick?: () => void;
 }) {
   const pct = Math.min(100, (level.quantity / maxQty) * 100);
@@ -99,8 +119,12 @@ function Row({
         className={`absolute inset-y-0 ${side === "Bid" ? "right-0" : "left-0"} ${color}`}
         style={{ width: `${pct}%` }}
       />
-      <span className={`relative ${text}`}>{level.price}</span>
-      <span className="relative text-right text-gray-300">{level.quantity}</span>
+      <span className={`relative ${text}`}>
+        {formatPrice(level.price, baseDecimals, quoteDecimals)}
+      </span>
+      <span className="relative text-right text-gray-300">
+        {formatQty(level.quantity, baseDecimals)}
+      </span>
       <span className="relative text-right text-gray-500">{level.order_count}</span>
     </button>
   );

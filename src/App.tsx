@@ -381,25 +381,48 @@ export default function App() {
                 setSide={setSide}
                 busy={busy}
                 onSubmit={placeOrder}
+                baseDecimals={account.vault.baseDecimals}
+                quoteDecimals={account.vault.quoteDecimals}
                 maxBase={maxBase}
                 maxQuote={maxQuote}
               />
-              <OpenOrders orders={openOrders} user={wallet.pubkey!} onCancel={cancelOrder} />
+              <OpenOrders
+                orders={openOrders}
+                user={wallet.pubkey!}
+                baseDecimals={account.vault.baseDecimals}
+                quoteDecimals={account.vault.quoteDecimals}
+                onCancel={cancelOrder}
+              />
             </div>
             <div className="space-y-4 lg:col-span-5">
               <Orderbook
                 bids={bids}
                 asks={asks}
+                baseDecimals={account.vault.baseDecimals}
+                quoteDecimals={account.vault.quoteDecimals}
                 onPriceClick={(p, s) => {
                   setPrice(String(p));
                   setSide(s);
                 }}
               />
-              <DepthChart bids={bids} asks={asks} />
+              <DepthChart
+                bids={bids}
+                asks={asks}
+                baseDecimals={account.vault.baseDecimals}
+                quoteDecimals={account.vault.quoteDecimals}
+              />
             </div>
             <div className="space-y-4 lg:col-span-4">
-              <Trades trades={trades} />
-              <Settlements jobs={settlements} />
+              <Trades
+                trades={trades}
+                baseDecimals={account.vault.baseDecimals}
+                quoteDecimals={account.vault.quoteDecimals}
+              />
+              <Settlements
+                jobs={settlements}
+                baseDecimals={account.vault.baseDecimals}
+                quoteDecimals={account.vault.quoteDecimals}
+              />
             </div>
           </div>
         )}

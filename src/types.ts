@@ -1,3 +1,11 @@
+/**
+ * 后端与链上的 `price` / `quantity` 一律是**最小单位（u64）**：
+ * - `quantity` = base 最小单位
+ * - `price`    = quote 最小单位 / base 最小单位（链上 quote = price × quantity）
+ *
+ * 展示用 lib/amount 的 formatPrice / formatQty，
+ * 提交前用 parsePrice / parseQty 从人类输入换算。
+ */
 export type Side = "Bid" | "Ask";
 
 export interface DepthLevel {

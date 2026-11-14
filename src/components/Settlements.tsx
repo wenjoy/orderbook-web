@@ -1,7 +1,10 @@
 import type { SettlementJob, SettlementStatus } from "../types";
+import { formatPrice, formatQty } from "../lib/amount";
 
 interface Props {
   jobs: SettlementJob[];
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
 }
 
 const statusColor: Record<SettlementStatus, string> = {
@@ -12,7 +15,7 @@ const statusColor: Record<SettlementStatus, string> = {
   failed: "text-ask",
 };
 
-export function Settlements({ jobs }: Props) {
+export function Settlements({ jobs, baseDecimals, quoteDecimals }: Props) {
   return (
     <div className="panel flex h-full flex-col overflow-hidden">
       <div className="panel-title">Settlements</div>
@@ -34,7 +37,8 @@ export function Settlements({ jobs }: Props) {
               </span>
             </div>
             <div className="mt-0.5 text-gray-300">
-              {j.trade.quantity} @ {j.trade.price}{" "}
+              {formatQty(j.trade.quantity, baseDecimals)} @{" "}
+              {formatPrice(j.trade.price, baseDecimals, quoteDecimals)}{" "}
               <span className="text-gray-600">
                 {j.trade.taker_user} ← {j.trade.maker_user}
               </span>

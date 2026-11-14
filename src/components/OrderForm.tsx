@@ -1,13 +1,16 @@
 import { useState } from "react";
 import type { Side } from "../types";
+import { parsePrice, parseQty, priceDecimals } from "../lib/amount";
 
 /** 余额比较的浮点容差 */
 const EPS = 1e-9;
 
+const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
+
 const fmtNum = (n: number) =>
   n.toLocaleString("en-US", { maximumFractionDigits: 6 });
 
-/** 按方向校验「所需数量」是否超过交易账户余额 */
+/** 按方向校验「所需数量」是否超过交易账户余额（人类单位） */
 function checkBalance(
   side: Side,
   price: number,
@@ -31,6 +34,14 @@ function checkBalance(
   return null;
 }
 
+/**
+ * 下单表单：输入是人类单位，提交前换算成链上 u64 最小单位。
+ *
+ *   quantity_raw = qty × 10^baseDecimals
+ *   price_raw    = price × 10^(quoteDecimals − baseDecimals)
+ *
+ * 链上结算按 quote = price × quantity 计算，所以价格精度受两个 mint 的精度差约束。
+ */
 export function OrderFormControlled({
   user,
   price,
@@ -39,6 +50,8 @@ export function OrderFormControlled({
   setSide,
   busy,
   onSubmit,
+  baseDecimals,
+  quoteDecimals,
   maxBase,
   maxQuote,
 }: {
@@ -49,6 +62,9 @@ export function OrderFormControlled({
   setSide: (s: Side) => void;
   busy: boolean;
   onSubmit: (p: { side: Side; price: number; quantity: number }) => Promise<void>;
+  /** base / quote mint 精度；null 表示还未拿到，此时禁用提交 */
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
   /** 交易账户可用余额（人类单位）；null 表示未知，跳过校验 */
   maxBase: number | null;
   maxQuote: number | null;
@@ -56,13 +72,54 @@ export function OrderFormControlled({
   const [qty, setQty] = useState("1");
   const [error, setError] = useState<string | null>(null);
 
-  const p = Number(price);
-  const q = Number(qty);
-  const validNumbers = Number.isFinite(p) && p > 0 && Number.isFinite(q) && q > 0;
-  // 实时提示余额不足（其它校验留到提交时）
-  const balanceError = validNumbers
-    ? checkBalance(side, p, q, maxBase, maxQuote)
+  const decimalsKnown = baseDecimals != null && quoteDecimals != null;
+  const priceScale = priceDecimals(baseDecimals, quoteDecimals);
+  const priceInDecimals = priceScale == null ? 0 : Math.max(0, priceScale);
+
+  const priceRaw = decimalsKnown
+    ? parsePrice(price, baseDecimals, quoteDecimals)
     : null;
+  const qtyRaw = baseDecimals != null ? parseQty(qty, baseDecimals) : null;
+
+  const humanPrice = Number(price);
+  const humanQty = Number(qty);
+  const positive =
+    Number.isFinite(humanPrice) &&
+    humanPrice > 0 &&
+    Number.isFinite(humanQty) &&
+    humanQty > 0;
+  const withinSafe =
+    priceRaw != null &&
+    qtyRaw != null &&
+    priceRaw > 0n &&
+    qtyRaw > 0n &&
+    priceRaw <= MAX_SAFE &&
+    qtyRaw <= MAX_SAFE;
+
+  // 实时提示输入/余额问题（其它校验留到提交时）
+  const inputError = (() => {
+    if (!decimalsKnown) return "Waiting for mint decimals…";
+    if (price.trim()) {
+      if (priceRaw == null) {
+        return priceInDecimals > 0
+          ? `Price must be a number with at most ${priceInDecimals} decimals`
+          : "Price must be an integer for this market";
+      }
+      if (priceRaw <= 0n) return "Price must be greater than 0";
+    }
+    if (qty.trim()) {
+      if (qtyRaw == null) {
+        return `Quantity must be a number with at most ${baseDecimals} decimals`;
+      }
+      if (qtyRaw <= 0n) return "Quantity must be greater than 0";
+    }
+    return null;
+  })();
+
+  const balanceError =
+    positive && withinSafe
+      ? checkBalance(side, humanPrice, humanQty, maxBase, maxQuote)
+      : null;
 
   const submit = async () => {
     setError(null);
@@ -70,17 +127,33 @@ export function OrderFormControlled({
       setError("Set a user / pubkey first");
       return;
     }
-    if (!Number.isFinite(p) || p <= 0 || !Number.isFinite(q) || q <= 0) {
-      setError("Price and quantity must be positive numbers");
+    if (!decimalsKnown) {
+      setError("Trading account decimals not loaded yet");
       return;
     }
-    const limited = checkBalance(side, p, q, maxBase, maxQuote);
+    if (!priceRaw || !qtyRaw || priceRaw <= 0n || qtyRaw <= 0n) {
+      setError(
+        inputError ??
+          "Price and quantity must be positive numbers within the market precision"
+      );
+      return;
+    }
+    if (priceRaw > MAX_SAFE || qtyRaw > MAX_SAFE) {
+      setError("Order size is too large");
+      return;
+    }
+    const limited = checkBalance(side, humanPrice, humanQty, maxBase, maxQuote);
     if (limited) {
       setError(limited);
       return;
     }
     try {
-      await onSubmit({ side, price: p, quantity: q });
+      // 交给后端的始终是最小单位的整数
+      await onSubmit({
+        side,
+        price: Number(priceRaw),
+        quantity: Number(qtyRaw),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -135,21 +208,33 @@ export function OrderFormControlled({
         </div>
 
         <div>
-          <label className="label">Price</label>
+          <label className="label">
+            Price
+            <span className="ml-1 text-gray-500">
+              ({priceInDecimals > 0 ? `${priceInDecimals} decimals max` : "integer"})
+            </span>
+          </label>
           <input
             className="input"
             value={price}
             type="number"
             min="0"
+            step={priceInDecimals > 0 ? 1 / 10 ** priceInDecimals : 1}
             onChange={(e) => setPrice(e.target.value)}
           />
         </div>
         <div>
-          <label className="label">Quantity</label>
-          <input
+          <label className="label">
+            Quantity
+            <span className="ml-1 text-gray-500">
+              ({baseDecimals ?? "?"} decimals max)
+            </span>
+          </label>          <input
             className="input"
             value={qty}
             type="number"
+            min="0"
+            step={baseDecimals != null ? 1 / 10 ** baseDecimals : "any"}
             onChange={(e) => setQty(e.target.value)}
           />
         </div>
@@ -157,20 +242,29 @@ export function OrderFormControlled({
         <p className="text-[10px] text-gray-500">
           Available {side === "Bid" ? "quote" : "base"}:{" "}
           <span className="font-mono">{available}</span>
-          {validNumbers && side === "Bid" && (
+          {positive && side === "Bid" && (
             <>
-              {" "}· cost <span className="font-mono">{fmtNum(p * q)}</span>
+              {" "}· cost{" "}
+              <span className="font-mono">{fmtNum(humanPrice * humanQty)}</span>
             </>
           )}
         </p>
 
-        {(balanceError ?? error) && (
-          <p className="text-xs text-ask">{balanceError ?? error}</p>
+        {(inputError ?? balanceError ?? error) && (
+          <p className="text-xs text-ask">
+            {inputError ?? balanceError ?? error}
+          </p>
         )}
 
         <button
           type="button"
-          disabled={busy || balanceError != null}
+          disabled={
+            busy ||
+            !decimalsKnown ||
+            inputError != null ||
+            balanceError != null ||
+            !withinSafe
+          }
           className={side === "Bid" ? "btn-bid w-full" : "btn-ask w-full"}
           onClick={submit}
         >

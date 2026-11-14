@@ -1,12 +1,21 @@
 import type { LocalOrder } from "../types";
+import { formatPrice, formatQty } from "../lib/amount";
 
 interface Props {
   orders: LocalOrder[];
   user: string;
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
   onCancel: (id: number) => Promise<void>;
 }
 
-export function OpenOrders({ orders, user, onCancel }: Props) {
+export function OpenOrders({
+  orders,
+  user,
+  baseDecimals,
+  quoteDecimals,
+  onCancel,
+}: Props) {
   const mine = orders.filter((o) => o.user === user && o.remaining > 0);
 
   return (
@@ -30,7 +39,8 @@ export function OpenOrders({ orders, user, onCancel }: Props) {
                 {o.side === "Bid" ? "BUY" : "SELL"}
               </span>{" "}
               <span className="text-gray-300">
-                {o.remaining} @ {o.price}
+                {formatQty(o.remaining, baseDecimals)} @{" "}
+                {formatPrice(o.price, baseDecimals, quoteDecimals)}
               </span>
               <span className="ml-2 text-gray-600">#{o.id}</span>
             </div>

@@ -1,10 +1,13 @@
 import type { Trade } from "../types";
+import { formatPrice, formatQty } from "../lib/amount";
 
 interface Props {
   trades: Trade[];
+  baseDecimals: number | null;
+  quoteDecimals: number | null;
 }
 
-export function Trades({ trades }: Props) {
+export function Trades({ trades, baseDecimals, quoteDecimals }: Props) {
   const list = [...trades].reverse().slice(0, 40);
 
   return (
@@ -27,8 +30,12 @@ export function Trades({ trades }: Props) {
               key={`${t.taker_order_id}-${t.maker_order_id}-${i}`}
               className="grid grid-cols-4 gap-1 px-3 py-0.5 hover:bg-surface-2"
             >
-              <span className={buy ? "text-bid" : "text-ask"}>{t.price}</span>
-              <span className="text-right text-gray-300">{t.quantity}</span>
+              <span className={buy ? "text-bid" : "text-ask"}>
+                {formatPrice(t.price, baseDecimals, quoteDecimals)}
+              </span>
+              <span className="text-right text-gray-300">
+                {formatQty(t.quantity, baseDecimals)}
+              </span>
               <span className={`text-right ${buy ? "text-bid" : "text-ask"}`}>
                 {buy ? "buy" : "sell"}
               </span>
