@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { FAUCET_AMOUNTS, requestFaucet, rpcUrl } from "../api";
+import { FAUCET_AMOUNTS, requestTokenAirdrop, rpcUrl } from "../api";
+import { parseUnits } from "../lib/amount";
 import type { MarketPair } from "../markets";
 import {
   buildInitializeVault,
@@ -148,22 +149,69 @@ export function useTradingAccount(
     }
   }, [wallet, market, check]);
 
-  /** 第 3 步：向水龙头领取 base / quote 代币到钱包 ATA */
+  /**
+   * 第 3 步：向水龙头领取 base / quote 代币。
+   * 后端一次只能发一个 mint，所以这里内部串行发两次请求，用户只点一次。
+   */
   const requestTokens = useCallback(async (): Promise<string | null> => {
     if (!wallet || !market) return null;
     setAction("faucet");
     setError(null);
     try {
-      const res = await requestFaucet({
-        owner: wallet,
-        base_mint: market.baseMint,
-        quote_mint: market.quoteMint,
-        base_amount: FAUCET_AMOUNTS.base,
-        quote_amount: FAUCET_AMOUNTS.quote,
-      });
-      // 领水结果以链上余额为准
+      // 以链上最新状态为准：没 ATA 就先别领，否则后端推导出的目的地账户不存在
+      const current = await fetchAccountSetup({ wallet, market });
+      setSetup(current);
+      if (!current.baseAta.exists || !current.quoteAta.exists) {
+        throw new Error("Create token accounts first");
+      }
+      if (current.baseDecimals == null || current.quoteDecimals == null) {
+        throw new Error("Unknown mint decimals, cannot compute airdrop amount");
+      }
+
+      const baseRaw = parseUnits(String(FAUCET_AMOUNTS.base), current.baseDecimals);
+      const quoteRaw = parseUnits(String(FAUCET_AMOUNTS.quote), current.quoteDecimals);
+      if (baseRaw == null || quoteRaw == null) {
+        throw new Error("Invalid airdrop amount for mint decimals");
+      }
+
+      const requests = [
+        {
+          symbol: market.baseSymbol,
+          body: {
+            destination: wallet,
+            amount: Number(baseRaw),
+            mint: market.baseMint,
+          },
+        },
+        {
+          symbol: market.quoteSymbol,
+          body: {
+            destination: wallet,
+            amount: Number(quoteRaw),
+            mint: market.quoteMint,
+          },
+        },
+      ];
+
+      // 两次请求彼此独立：一个失败不影响另一个已到账，最后按余额判断是否放行
+      const signatures: string[] = [];
+      const failures: string[] = [];
+      for (const req of requests) {
+        try {
+          const res = await requestTokenAirdrop(req.body);
+          if (res.signature) signatures.push(res.signature);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          failures.push(`${req.symbol}: ${msg}`);
+        }
+      }
+
       await check({ silent: true });
-      return res.signature ?? null;
+
+      if (failures.length) {
+        throw new Error(`Airdrop failed → ${failures.join(" / ")}`);
+      }
+      return signatures[0] ?? null;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);

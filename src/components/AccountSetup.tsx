@@ -2,7 +2,7 @@ import type { AccountAction, AccountState } from "../hooks/useTradingAccount";
 import type { AccountSetup as Setup } from "../lib/chainStatus";
 import type { MarketPair } from "../markets";
 import { formatUnits } from "../lib/amount";
-import { FAUCET_AMOUNTS, faucetUrl, rpcUrl } from "../api";
+import { FAUCET_AMOUNTS, rpcUrl } from "../api";
 
 type Props = {
   state: AccountState;
@@ -184,8 +184,6 @@ export function AccountSetup({
 
   // 仅本地验证节点 / devnet 提供一键领水
   const canAirdrop = /127\.0\.0\.1|localhost|devnet/.test(rpcUrl());
-  // 水龙头地址未配置时按钮置灰，等 VITE_FAUCET_URL 填好即可用
-  const hasFaucet = faucetUrl().length > 0;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -310,18 +308,11 @@ export function AccountSetup({
         {step3 === "locked" && (
           <p className="text-[11px] text-gray-500">先完成第 1、2 步。</p>
         )}
-        {!hasFaucet && (
-          <p className="text-[11px] text-gray-500">
-            Faucet 未配置：设置 VITE_FAUCET_URL 后按钮即可使用。
-          </p>
-        )}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             type="button"
             className="btn-ghost text-xs"
-            disabled={
-              busy || step3 !== "active" || !hasFaucet || setup.fundedOk
-            }
+            disabled={busy || step3 !== "active" || setup.fundedOk}
             onClick={onRequestTokens}
           >
             {action === "faucet"
@@ -331,7 +322,7 @@ export function AccountSetup({
                 : `Request ${FAUCET_AMOUNTS.base} ${market.baseSymbol} + ${FAUCET_AMOUNTS.quote} ${market.quoteSymbol}`}
           </button>
           <span className="text-[10px] text-gray-500">
-            由 faucet 服务签名铸币，无需钱包签名。
+            一次点击会内部请求两次（base / quote），由后端热钱包转账。
           </span>
         </div>
       </Step>

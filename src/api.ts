@@ -47,9 +47,13 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 /** 水龙头每次领取的数量（人类单位） */
 export const FAUCET_AMOUNTS = { base: 100, quote: 1000 } as const;
 
-/** 水龙头地址；未配置时返回空字符串（按钮置灰） */
+/**
+ * 水龙头地址：默认走后端 /onchain/request_token_airdrop，
+ * 需要指向别的服务时用 VITE_FAUCET_URL 覆盖。
+ */
 export function faucetUrl(): string {
-  return ((import.meta.env.VITE_FAUCET_URL as string | undefined) ?? "").trim();
+  const override = (import.meta.env.VITE_FAUCET_URL as string | undefined)?.trim();
+  return override || `${BASE}/onchain/request_token_airdrop`;
 }
 
 export type FaucetResult = {
@@ -57,25 +61,21 @@ export type FaucetResult = {
 };
 
 /**
- * 请求水龙头给钱包的 base / quote ATA 铸币。
- * 默认约定：POST VITE_FAUCET_URL，body 为 snake_case 的 owner / *_mint / *_amount。
+ * 请求水龙头发一次代币。
+ * 后端契约（orderbook-engine::TokenAirdropRequest）：
+ *   POST { destination: 钱包地址, amount: u64 最小单位, mint }
+ * 每次只发一个 mint，base / quote 需要调用两次。
  */
-export async function requestFaucet(body: {
-  owner: string;
-  base_mint: string;
-  quote_mint: string;
-  base_amount: number;
-  quote_amount: number;
+export async function requestTokenAirdrop(body: {
+  destination: string;
+  amount: number;
+  mint: string;
 }): Promise<FaucetResult> {
-  const url = faucetUrl();
-  if (!url) {
-    throw new Error("Faucet is not configured (set VITE_FAUCET_URL)");
-  }
-  if (body.base_amount <= 0 || body.quote_amount <= 0) {
-    throw new Error("Faucet amounts must be greater than 0");
+  if (!Number.isSafeInteger(body.amount) || body.amount <= 0) {
+    throw new Error(`Invalid airdrop amount: ${body.amount}`);
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(faucetUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -86,7 +86,7 @@ export async function requestFaucet(body: {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    /* 有些 faucet 直接返回纯文本签名 */
+    /* 有些实现直接返回纯文本签名 */
   }
 
   if (!res.ok) {
@@ -94,7 +94,7 @@ export async function requestFaucet(body: {
       parsed && typeof parsed === "object" && "error" in parsed
         ? String((parsed as { error: unknown }).error)
         : text.trim() || res.statusText;
-    throw new Error(msg || `Faucet request failed (${res.status})`);
+    throw new Error(msg || `Airdrop failed (${res.status})`);
   }
 
   if (parsed && typeof parsed === "object") {
