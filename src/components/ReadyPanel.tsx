@@ -11,12 +11,27 @@ import {
   fetchReadyReport,
   type ReadyReport,
 } from "../lib/chainStatus";
+import { formatUnits } from "../lib/amount";
 
 type Props = {
   wallet: string | null;
   showToast: (m: string) => void;
   market: MarketPair | null;
 };
+
+/** 最小单位 → 带千分位的人类可读字符串 */
+function fmt(
+  raw: bigint | null | undefined,
+  decimals: number | null,
+  symbol?: string
+): string {
+  if (raw == null) return "—";
+  const s = formatUnits(raw, decimals);
+  const [whole, frac] = s.split(".");
+  const grouped = BigInt(whole || "0").toLocaleString("en-US");
+  const value = frac ? `${grouped}.${frac}` : grouped;
+  return symbol ? `${value} ${symbol}` : value;
+}
 
 function Ok({ ok }: { ok: boolean }) {
   return (
@@ -122,6 +137,9 @@ export function ReadyPanel({ wallet, showToast, market }: Props) {
     }
   };
 
+  const baseSymbol = market?.baseSymbol ?? "base";
+  const quoteSymbol = market?.quoteSymbol ?? "quote";
+
   return (
     <div className="space-y-4">
       <div className="panel">
@@ -172,93 +190,100 @@ export function ReadyPanel({ wallet, showToast, market }: Props) {
           </div>
 
           <div className="panel">
-            <div className="panel-title">1–3 · Program / Market / Vault</div>
+            <div className="panel-title">Program / Market / Vault</div>
             <div className="px-3 pb-3">
               <Row label="Program" ok={report.program.exists && !!report.program.executable}>
                 {report.program.programId}
-                {report.program.exists &&
-                  ` · executable=${String(report.program.executable)} · owner=${report.program.owner}`}
               </Row>
               <Row label="Market PDA" ok={!!report.marketPda.decoded?.is_initialized}>
                 {report.marketPda.address}
-                {report.marketPda.decoded && (
-                  <pre className="mt-1 whitespace-pre-wrap">
-                    {JSON.stringify(
-                      {
-                        ...report.marketPda.decoded,
-                        total_base_deposited:
-                          report.marketPda.decoded.total_base_deposited.toString(),
-                        total_quote_deposited:
-                          report.marketPda.decoded.total_quote_deposited.toString(),
-                      },
-                      null,
-                      2
-                    )}
-                  </pre>
-                )}
               </Row>
+              {report.marketPda.decoded && (
+                <>
+                  <Row label="Authority">
+                    {report.marketPda.decoded.authority}
+                  </Row>
+                  <Row label="Total deposited">
+                    {fmt(
+                      report.marketPda.decoded.total_base_deposited,
+                      report.baseMint.decimals,
+                      baseSymbol
+                    )}
+                    {" · "}
+                    {fmt(
+                      report.marketPda.decoded.total_quote_deposited,
+                      report.quoteMint.decimals,
+                      quoteSymbol
+                    )}
+                  </Row>
+                </>
+              )}
               <Row
                 label="UserVault PDA"
                 ok={!!report.userVault.decoded?.is_initialized}
               >
                 {report.userVault.address}
-                {report.userVault.decoded && (
-                  <pre className="mt-1 whitespace-pre-wrap">
-                    {JSON.stringify(
-                      {
-                        ...report.userVault.decoded,
-                        base_balance: report.userVault.decoded.base_balance.toString(),
-                        quote_balance: report.userVault.decoded.quote_balance.toString(),
-                      },
-                      null,
-                      2
-                    )}
-                  </pre>
-                )}
               </Row>
+              {report.userVault.decoded && (
+                <>
+                  <Row label="Owner">{report.userVault.decoded.owner}</Row>
+                  <Row label="Base balance">
+                    {fmt(
+                      report.userVault.decoded.base_balance,
+                      report.baseMint.decimals,
+                      baseSymbol
+                    )}
+                  </Row>
+                  <Row label="Quote balance">
+                    {fmt(
+                      report.userVault.decoded.quote_balance,
+                      report.quoteMint.decimals,
+                      quoteSymbol
+                    )}
+                  </Row>
+                </>
+              )}
             </div>
           </div>
 
           <div className="panel">
-            <div className="panel-title">4 · Mints (base / quote)</div>
+            <div className="panel-title">Mints</div>
             <div className="px-3 pb-3">
-              <Row label={`Base ${market?.baseSymbol ?? "—"}`} ok={!!report.baseMint.isInitialized}>
+              <Row label={`Base ${baseSymbol}`} ok={!!report.baseMint.isInitialized}>
                 {report.baseMint.address}
                 <br />
-                supply={report.baseMint.supply?.toString() ?? "—"} decimals=
-                {report.baseMint.decimals ?? "—"}
+                supply {fmt(report.baseMint.supply, report.baseMint.decimals, baseSymbol)}
               </Row>
-              <Row label={`Quote ${market?.quoteSymbol ?? "—"}`} ok={!!report.quoteMint.isInitialized}>
+              <Row label={`Quote ${quoteSymbol}`} ok={!!report.quoteMint.isInitialized}>
                 {report.quoteMint.address}
                 <br />
-                supply={report.quoteMint.supply?.toString() ?? "—"} decimals=
-                {report.quoteMint.decimals ?? "—"}
+                supply {fmt(report.quoteMint.supply, report.quoteMint.decimals, quoteSymbol)}
               </Row>
             </div>
           </div>
 
           <div className="panel">
-            <div className="panel-title">5–6 · Token accounts</div>
+            <div className="panel-title">Token accounts</div>
             <div className="px-3 pb-3">
               <Row label="Wallet Base ATA" ok={report.walletBaseAta.exists}>
                 {report.walletBaseAta.address}
                 <br />
-                balance={report.walletBaseAta.uiAmount ?? "—"}
+                balance {fmt(report.walletBaseAta.amount, report.baseMint.decimals, baseSymbol)}
               </Row>
               <Row label="Wallet Quote ATA" ok={report.walletQuoteAta.exists}>
                 {report.walletQuoteAta.address}
                 <br />
-                balance={report.walletQuoteAta.uiAmount ?? "—"}
+                balance {fmt(report.walletQuoteAta.amount, report.quoteMint.decimals, quoteSymbol)}
               </Row>
               <Row label="Vault Base ATA (owner=Market)" ok={report.vaultBaseAta.exists}>
                 {report.vaultBaseAta.address}
                 <br />
-                balance={report.vaultBaseAta.uiAmount ?? "—"}
+                balance {fmt(report.vaultBaseAta.amount, report.baseMint.decimals, baseSymbol)}
               </Row>
               <Row label="Vault Quote ATA (owner=Market)" ok={report.vaultQuoteAta.exists}>
                 {report.vaultQuoteAta.address}
                 <br />
-                balance={report.vaultQuoteAta.uiAmount ?? "—"}
+                balance {fmt(report.vaultQuoteAta.amount, report.quoteMint.decimals, quoteSymbol)}
               </Row>
             </div>
           </div>
