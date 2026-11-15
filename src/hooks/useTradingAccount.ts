@@ -294,7 +294,7 @@ export function useTradingAccount(
           await topUpSol(missing);
         } catch (e) {
           throw new Error(
-            `Automatic SOL top-up failed: ${errorMessage(e)}`
+            `Automatic SOL top-up failed, please fund your wallet in another way`
           );
         } finally {
           setAction(null);
