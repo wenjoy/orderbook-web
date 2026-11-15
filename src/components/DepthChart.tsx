@@ -83,7 +83,7 @@ function Bar({
         <div className={`h-2 rounded-sm ${color} opacity-70`} style={{ width: `${w}%` }} />
       </div>
       <span className="w-10 shrink-0 truncate text-right text-gray-500">
-        {formatQty(level.quantity)}
+        {formatQty(level.quantity, baseDecimals)}
       </span>
     </div>
   );

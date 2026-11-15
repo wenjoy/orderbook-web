@@ -1,42 +1,53 @@
 import { useState } from "react";
 import type { Side } from "../types";
-import { parsePrice, parseQty, priceDecimals } from "../lib/amount";
+import { formatUnits, parsePrice, parseQty } from "../lib/amount";
 
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 
-const fmtBig = (n: bigint) => n.toLocaleString("en-US");
+/** 最小单位 → 带千分位的人类可读字符串 */
+function fmtAmount(raw: bigint, decimals: number | null): string {
+  const s = formatUnits(raw, decimals);
+  const [whole, frac] = s.split(".");
+  const grouped = BigInt(whole || "0").toLocaleString("en-US");
+  return frac ? `${grouped}.${frac}` : grouped;
+}
 
-/** 按方向校验余额：全部用链上最小单位直接比较（与结算完全一致） */
+/** 按方向校验余额：内部用最小单位比较，和链上结算完全一致 */
 function checkBalance(
   side: Side,
   priceRaw: bigint,
   qtyRaw: bigint,
   maxBaseRaw: bigint,
-  maxQuoteRaw: bigint
+  maxQuoteRaw: bigint,
+  baseDecimals: number | null,
+  quoteDecimals: number | null
 ): string | null {
   if (side === "Bid") {
     // 买单花的是 quote：price × quantity
     const cost = priceRaw * qtyRaw;
     if (cost > maxQuoteRaw) {
-      return `Insufficient quote balance: need ${fmtBig(cost)}, available ${fmtBig(maxQuoteRaw)}`;
+      return `Insufficient quote balance: need ${fmtAmount(
+        cost,
+        quoteDecimals
+      )}, available ${fmtAmount(maxQuoteRaw, quoteDecimals)}`;
     }
+    return null;
   }
-  if (side === "Ask") {
-    // 卖单花的是 base：quantity
-    if (qtyRaw > maxBaseRaw) {
-      return `Insufficient base balance: need ${fmtBig(qtyRaw)}, available ${fmtBig(maxBaseRaw)}`;
-    }
+  // 卖单花的是 base：quantity
+  if (qtyRaw > maxBaseRaw) {
+    return `Insufficient base balance: need ${fmtAmount(
+      qtyRaw,
+      baseDecimals
+    )}, available ${fmtAmount(maxBaseRaw, baseDecimals)}`;
   }
   return null;
 }
 
 /**
- * 下单表单。
- *
- *   quantity —— 纯整数（u64），原样提交，不做 decimal 换算
- *   price    —— 人类价格，按 10^(quoteDecimals − baseDecimals) 换算成链上 u64
- *
- * 链上结算按 quote = price × quantity 计算，余额校验也直接用最小单位比较。
+ * 下单表单：用户只看到人类单位（1、10、0.5 …）。
+ * 提交前在内部换算成链上 u64：
+ *   quantity_raw = qty × 10^baseDecimals
+ *   price_raw    = price × 10^(quoteDecimals − baseDecimals)
  */
 export function OrderFormControlled({
   user,
@@ -69,13 +80,11 @@ export function OrderFormControlled({
   const [error, setError] = useState<string | null>(null);
 
   const decimalsKnown = baseDecimals != null && quoteDecimals != null;
-  const priceScale = priceDecimals(baseDecimals, quoteDecimals);
-  const priceInDecimals = priceScale == null ? 0 : Math.max(0, priceScale);
 
   const priceRaw = decimalsKnown
     ? parsePrice(price, baseDecimals, quoteDecimals)
     : null;
-  const qtyRaw = parseQty(qty);
+  const qtyRaw = baseDecimals != null ? parseQty(qty, baseDecimals) : null;
 
   const withinSafe =
     priceRaw != null &&
@@ -87,17 +96,13 @@ export function OrderFormControlled({
 
   // 实时提示输入/余额问题（其它校验留到提交时）
   const inputError = (() => {
-    if (!decimalsKnown) return "Waiting for mint decimals…";
+    if (!decimalsKnown) return "Loading market data…";
     if (price.trim()) {
-      if (priceRaw == null) {
-        return priceInDecimals > 0
-          ? `Price must be a number with at most ${priceInDecimals} decimals`
-          : "Price must be an integer for this market";
-      }
+      if (priceRaw == null) return "Invalid price";
       if (priceRaw <= 0n) return "Price must be greater than 0";
     }
     if (qty.trim()) {
-      if (qtyRaw == null) return "Quantity must be a whole number";
+      if (qtyRaw == null) return "Invalid quantity";
       if (qtyRaw <= 0n) return "Quantity must be greater than 0";
     }
     return null;
@@ -105,7 +110,15 @@ export function OrderFormControlled({
 
   const balanceError =
     withinSafe && priceRaw != null && qtyRaw != null
-      ? checkBalance(side, priceRaw, qtyRaw, maxBaseRaw, maxQuoteRaw)
+      ? checkBalance(
+          side,
+          priceRaw,
+          qtyRaw,
+          maxBaseRaw,
+          maxQuoteRaw,
+          baseDecimals,
+          quoteDecimals
+        )
       : null;
 
   const submit = async () => {
@@ -115,21 +128,26 @@ export function OrderFormControlled({
       return;
     }
     if (!decimalsKnown) {
-      setError("Trading account decimals not loaded yet");
+      setError("Market data is still loading");
       return;
     }
     if (!priceRaw || !qtyRaw || priceRaw <= 0n || qtyRaw <= 0n) {
-      setError(
-        inputError ??
-        "Price and quantity must be positive numbers within the market precision"
-      );
+      setError(inputError ?? "Enter a valid price and quantity");
       return;
     }
     if (priceRaw > MAX_SAFE || qtyRaw > MAX_SAFE) {
       setError("Order size is too large");
       return;
     }
-    const limited = checkBalance(side, priceRaw, qtyRaw, maxBaseRaw, maxQuoteRaw);
+    const limited = checkBalance(
+      side,
+      priceRaw,
+      qtyRaw,
+      maxBaseRaw,
+      maxQuoteRaw,
+      baseDecimals,
+      quoteDecimals
+    );
     if (limited) {
       setError(limited);
       return;
@@ -147,7 +165,9 @@ export function OrderFormControlled({
   };
 
   const available =
-    side === "Bid" ? fmtBig(maxQuoteRaw) : fmtBig(maxBaseRaw);
+    side === "Bid"
+      ? fmtAmount(maxQuoteRaw, quoteDecimals)
+      : fmtAmount(maxBaseRaw, baseDecimals);
   const cost = priceRaw != null && qtyRaw != null ? priceRaw * qtyRaw : null;
 
   return (
@@ -190,32 +210,22 @@ export function OrderFormControlled({
         </div>
 
         <div>
-          <label className="label">
-            Price
-            <span className="ml-1 text-gray-500">
-              ({priceInDecimals > 0 ? `${priceInDecimals} decimals max` : "integer"})
-            </span>
-          </label>
+          <label className="label">Price</label>
           <input
             className="input"
             value={price}
-            type="number"
-            min="0"
-            step={priceInDecimals > 0 ? 1 / 10 ** priceInDecimals : 1}
+            type="text"
+            inputMode="decimal"
             onChange={(e) => setPrice(e.target.value)}
           />
         </div>
         <div>
-          <label className="label">
-            Quantity
-            <span className="ml-1 text-gray-500">
-              ({baseDecimals ?? "?"} decimals max)
-            </span>
-          </label>          <input
+          <label className="label">Quantity</label>
+          <input
             className="input"
             value={qty}
-            type="number"
-            min="0"
+            type="text"
+            inputMode="decimal"
             onChange={(e) => setQty(e.target.value)}
           />
         </div>
@@ -225,7 +235,10 @@ export function OrderFormControlled({
           <span className="font-mono">{available}</span>
           {side === "Bid" && cost != null && cost > 0n && (
             <>
-              {" "}· cost <span className="font-mono">{fmtBig(cost)}</span>
+              {" "}· cost{" "}
+              <span className="font-mono">
+                {fmtAmount(cost, quoteDecimals)}
+              </span>
             </>
           )}
         </p>

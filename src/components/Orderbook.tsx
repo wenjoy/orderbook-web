@@ -123,7 +123,7 @@ function Row({
         {formatPrice(level.price, baseDecimals, quoteDecimals)}
       </span>
       <span className="relative text-right text-gray-300">
-        {formatQty(level.quantity)}
+        {formatQty(level.quantity, baseDecimals)}
       </span>
       <span className="relative text-right text-gray-500">{level.order_count}</span>
     </button>

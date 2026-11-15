@@ -1,9 +1,10 @@
 /**
- * 后端与链上的 `price` / `quantity` 都是 **u64**：
- * - `quantity` 是纯整数，前端不做任何 decimal 换算，原样提交/展示
- * - `price`    需要按两个 mint 的精度差换算（见 lib/amount 的 parsePrice/formatPrice）
+ * 后端与链上的 `price` / `quantity` 都是 **u64 最小单位**：
+ * - `quantity` = base 最小单位（UI 内部按 10^baseDecimals 换算）
+ * - `price`    = quote 最小单位 / base 最小单位（UI 内部按 10^(quoteDec-baseDec) 换算）
  *
  * 链上结算按 quote = price × quantity 计算。
+ * 界面上全部展示人类单位，换算只在内部进行。
  */
 export type Side = "Bid" | "Ask";
 

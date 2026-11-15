@@ -59,12 +59,12 @@ export function formatPrice(
   return (n * 10n ** BigInt(-d)).toString();
 }
 
-/**
- * 链上 u64 quantity → 显示字符串。
- * quantity 是纯整数（u64），与 mint 精度无关，不做任何 decimal 换算。
- */
-export function formatQty(raw: number | bigint): string {
-  return toBigInt(raw).toString();
+/** 链上 u64 quantity → 人类可读字符串（按 base 精度） */
+export function formatQty(
+  raw: number | bigint,
+  baseDecimals: number | null
+): string {
+  return formatUnits(toBigInt(raw), baseDecimals);
 }
 
 /** 人类价格输入 → 链上 u64 price；无法用整数表示时返回 null */
@@ -83,13 +83,7 @@ export function parsePrice(
   return whole % unit === 0n ? whole / unit : null;
 }
 
-/** 数量输入 → 链上 u64 quantity；必须是纯整数 */
-export function parseQty(input: string): bigint | null {
-  const s = input.trim();
-  if (!/^\d+$/.test(s)) return null;
-  try {
-    return BigInt(s);
-  } catch {
-    return null;
-  }
+/** 人类数量输入（base）→ 链上 u64 quantity */
+export function parseQty(input: string, baseDecimals: number): bigint | null {
+  return parseUnits(input, baseDecimals);
 }
