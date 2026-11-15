@@ -1,5 +1,6 @@
 import type { Trade } from "../types";
 import { formatPrice, formatQty } from "../lib/amount";
+import { formatClock, formatDateTime } from "../lib/time";
 
 interface Props {
   trades: Trade[];
@@ -13,8 +14,9 @@ export function Trades({ trades, baseDecimals, quoteDecimals }: Props) {
   return (
     <div className="panel flex h-full flex-col overflow-hidden">
       <div className="panel-title">Recent Trades</div>
-      <div className="grid grid-cols-4 gap-1 border-b border-surface-3 px-3 py-1 text-[10px] uppercase text-gray-500">
-        <span>Price</span>
+      <div className="grid grid-cols-5 gap-1 border-b border-surface-3 px-3 py-1 text-[10px] uppercase text-gray-500">
+        <span>Time</span>
+        <span className="text-right">Price</span>
         <span className="text-right">Qty</span>
         <span className="text-right">Side</span>
         <span className="text-right">Taker</span>
@@ -24,16 +26,22 @@ export function Trades({ trades, baseDecimals, quoteDecimals }: Props) {
           <p className="px-3 py-4 text-center text-gray-600">No trades yet</p>
         )}
         {list.map((t, i) => {
-          const buy = t.taker_side === "Bid";
+          const buy = t.side === "Bid";
           return (
             <div
               key={`${t.taker_order_id}-${t.maker_order_id}-${i}`}
-              className="grid grid-cols-4 gap-1 px-3 py-0.5 hover:bg-surface-2"
+              className="grid grid-cols-5 gap-1 px-3 py-0.5 hover:bg-surface-2"
             >
-              <span className={buy ? "text-bid" : "text-ask"}>
+              <span
+                className="truncate text-[10px] text-gray-500"
+                title={formatDateTime(t.timestamp)}
+              >
+                {formatClock(t.timestamp)}
+              </span>
+              <span className={`text-right ${buy ? "text-bid" : "text-ask"}`}>
                 {formatPrice(t.price, baseDecimals, quoteDecimals)}
               </span>
-              <span className="text-right text-gray-300">
+              <span className="truncate text-right text-gray-300">
                 {formatQty(t.quantity, baseDecimals)}
               </span>
               <span className={`text-right ${buy ? "text-bid" : "text-ask"}`}>

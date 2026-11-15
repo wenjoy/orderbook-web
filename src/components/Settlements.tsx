@@ -1,5 +1,6 @@
 import type { SettlementJob, SettlementStatus } from "../types";
 import { formatPrice, formatQty } from "../lib/amount";
+import { formatClock, formatDateTime } from "../lib/time";
 
 interface Props {
   jobs: SettlementJob[];
@@ -31,7 +32,15 @@ export function Settlements({ jobs, baseDecimals, quoteDecimals }: Props) {
             className="border-b border-surface-3 px-3 py-2 hover:bg-surface-2"
           >
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">#{j.id}</span>
+              <span className="text-gray-400">
+                #{j.id}
+                <span
+                  className="ml-2 text-[10px] text-gray-600"
+                  title={formatDateTime(j.created_at_ms)}
+                >
+                  {formatClock(j.created_at_ms)}
+                </span>
+              </span>
               <span className={statusColor[j.status] ?? "text-gray-400"}>
                 {j.status}
               </span>

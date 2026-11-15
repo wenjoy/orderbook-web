@@ -272,7 +272,7 @@ export default function App() {
         connected={wsConnected}
         apiOk={apiOk}
         wallet={wallet.pubkey}
-        walletConnecting={wallet.connecting}
+        walletConnecting={wallet.connecting || wallet.restoring}
         hasPhantom={wallet.hasPhantom}
         markets={markets}
         marketId={marketId}
@@ -313,6 +313,11 @@ export default function App() {
             showToast={showToast}
             market={market}
           />
+        ) : wallet.restoring ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-24">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-surface-3 border-t-accent" />
+            <p className="text-sm text-gray-400">Restoring wallet…</p>
+          </div>
         ) : !wallet.connected ? (
           <div className="flex flex-col items-center justify-center gap-4 py-24">
             <p className="text-lg font-medium">Connect wallet to trade</p>

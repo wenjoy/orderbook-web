@@ -15,11 +15,16 @@ export interface DepthLevel {
 }
 
 export interface Trade {
-  taker_order_id: number;
-  maker_order_id: number;
+  id: string;
+  /** UUID 字符串 */
+  taker_order_id: string;
+  maker_order_id: string;
   price: number;
   quantity: number;
-  taker_side: Side;
+  /** ISO 时间戳（后端 chrono DateTime<Utc>） */
+  timestamp: string;
+  /** taker 的方向 */
+  side: Side;
   taker_user: string;
   maker_user: string;
 }
