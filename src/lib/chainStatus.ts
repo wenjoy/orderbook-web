@@ -441,7 +441,7 @@ export async function fetchReadyReport(params: {
     id: "market",
     ok: marketOk,
     label: "Market PDA 已初始化",
-    fix: marketOk ? undefined : "Admin → Initialize Market（钱包签名）",
+    fix: marketOk ? undefined : "Debug → Initialize Market（钱包签名）",
   });
 
   const vaultOk =
@@ -456,7 +456,7 @@ export async function fetchReadyReport(params: {
       ? "先连接钱包"
       : vaultOk
         ? undefined
-        : "回 Trade 页点击「Open Account」初始化 User Vault（需先有 Market）",
+        : "Trade 页点击「Set up trading account」初始化 User Vault（需先有 Market）",
   });
 
   const walletOk =
@@ -471,7 +471,7 @@ export async function fetchReadyReport(params: {
       ? "先连接钱包"
       : walletOk
         ? undefined
-        : "Admin → User wallet must have balance",
+        : "Debug → User wallet must have balance",
   });
   checks.push({
     id: "wallet_base_ata",

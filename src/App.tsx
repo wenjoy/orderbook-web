@@ -26,12 +26,49 @@ import { ReadyPanel } from "./components/ReadyPanel";
 import { AccountSetup } from "./components/AccountSetup";
 import { useTradingAccount } from "./hooks/useTradingAccount";
 
-type Tab = "trade" | "admin";
+type Tab = "trade" | "debug";
+
+/** 开启 debug 面板的 console 方法；状态存在 sessionStorage，关闭标签页即失效 */
+const DEBUG_STORAGE_KEY = "orderbook.debug";
+
+declare global {
+  interface Window {
+    debug?: () => string;
+  }
+}
+
+function readDebugFlag(): boolean {
+  try {
+    return window.sessionStorage.getItem(DEBUG_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export default function App() {
   const wallet = useWallet();
   const [tab, setTab] = useState<Tab>("trade");
+  const [debugEnabled, setDebugEnabled] = useState(readDebugFlag);
   const [apiOk, setApiOk] = useState<boolean | null>(null);
+
+  // 在 console 里调用 debug() 打开 Debug 入口（仅当前标签页有效）
+  useEffect(() => {
+    window.debug = () => {
+      window.sessionStorage.setItem(DEBUG_STORAGE_KEY, "1");
+      setDebugEnabled(true);
+      setTab("debug");
+      console.info("[debug] mode enabled until this tab is closed");
+      return "debug mode enabled";
+    };
+    return () => {
+      delete window.debug;
+    };
+  }, []);
+
+  // Debug 未开启时不允许停留在 debug 视图
+  useEffect(() => {
+    if (!debugEnabled && tab === "debug") setTab("trade");
+  }, [debugEnabled, tab]);
 
   // 市场列表来自后端，默认选中第一个
   const [markets, setMarkets] = useState<MarketPair[]>([]);
@@ -160,15 +197,6 @@ export default function App() {
     }
   };
 
-  const handleAirdrop = async () => {
-    try {
-      const signature = await account.airdrop(1);
-      if (signature) showToast(`Airdrop: ${signature.slice(0, 12)}…`);
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
-    }
-  };
-
   const placeOrder = async (p: {
     side: Side;
     price: number;
@@ -239,6 +267,7 @@ export default function App() {
     <div className="min-h-screen bg-surface-0 text-gray-100">
       <Header
         tab={tab}
+        debugEnabled={debugEnabled}
         onTab={setTab}
         connected={wsConnected}
         apiOk={apiOk}
@@ -278,7 +307,7 @@ export default function App() {
       )}
 
       <main className="mx-auto max-w-7xl p-4">
-        {tab === "admin" ? (
+        {tab === "debug" ? (
           <ReadyPanel
             wallet={wallet.pubkey}
             showToast={showToast}
@@ -298,13 +327,6 @@ export default function App() {
               onClick={() => void wallet.connect()}
             >
               {wallet.hasPhantom ? "Connect Phantom" : "Install Phantom first"}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost text-xs"
-              onClick={() => setTab("admin")}
-            >
-              或先打开 Admin 做链上准备
             </button>
           </div>
         ) : !market ? (
@@ -337,7 +359,6 @@ export default function App() {
               void account.check({ silent: account.state === "missing" })
             }
             onSetupAll={() => void handleSetupAll()}
-            onAirdrop={() => void handleAirdrop()}
           />
         ) : (
           <div className="grid gap-4 lg:grid-cols-12">

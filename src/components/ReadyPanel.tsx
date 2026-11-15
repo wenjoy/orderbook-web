@@ -147,9 +147,6 @@ export function ReadyPanel({ wallet, showToast, market }: Props) {
                 : "尚未就绪 — 见下方缺失项"}
             </p>
           )}
-          {report && (
-            <p className="font-mono text-[10px] text-gray-500">RPC {report.rpc}</p>
-          )}
         </div>
       </div>
 

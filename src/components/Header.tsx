@@ -1,9 +1,10 @@
 import type { MarketPair } from "../markets";
 
-type Tab = "trade" | "admin";
+type Tab = "trade" | "debug";
 
 interface Props {
   tab: Tab;
+  debugEnabled: boolean;
   onTab: (t: Tab) => void;
   connected: boolean;
   apiOk: boolean | null;
@@ -19,6 +20,7 @@ interface Props {
 
 export function Header({
   tab,
+  debugEnabled,
   onTab,
   connected,
   apiOk,
@@ -49,9 +51,11 @@ export function Header({
           <TabBtn active={tab === "trade"} onClick={() => onTab("trade")}>
             Trade
           </TabBtn>
-          <TabBtn active={tab === "admin"} onClick={() => onTab("admin")}>
-            Admin
-          </TabBtn>
+          {debugEnabled && (
+            <TabBtn active={tab === "debug"} onClick={() => onTab("debug")}>
+              Debug
+            </TabBtn>
+          )}
           <MarketSelect
             markets={markets}
             marketId={marketId}

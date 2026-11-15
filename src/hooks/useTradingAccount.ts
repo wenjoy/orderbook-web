@@ -254,6 +254,24 @@ export function useTradingAccount(
   }, [wallet, market, check]);
 
   /**
+   * 自动补 SOL：本地验证节点 / devnet 上直接给当前钱包空投缺口额度。
+   * 主网会失败，错误会带回到第 1 步展示。
+   */
+  const topUpSol = useCallback(
+    async (lamports: number): Promise<string | null> => {
+      if (!wallet || lamports <= 0) return null;
+      const connection = new Connection(rpcUrl(), "confirmed");
+      const signature = await connection.requestAirdrop(
+        new PublicKey(wallet),
+        Math.ceil(lamports)
+      );
+      await connection.confirmTransaction(signature, "confirmed");
+      return signature;
+    },
+    [wallet]
+  );
+
+  /**
    * 一键开户：从当前状态开始，把没完成的步骤依次跑完。
    * 每步开始前都会重新读链上状态，因此重复点击是安全的（幂等）。
    */
@@ -268,12 +286,24 @@ export function useTradingAccount(
       let current = await fetchAccountSetup({ wallet, market });
       setSetup(current);
 
-      // 1 · SOL
+      // 1 · SOL（不足时自动补齐缺口）
       if (!current.solOk) {
-        const missing = (current.requiredLamports - current.solLamports) / 1e9;
-        throw new Error(
-          `Insufficient SOL: need ≈ ${missing.toFixed(4)} more SOL to pay rent and fees`
-        );
+        const missing = current.requiredLamports - current.solLamports;
+        setAction("airdrop");
+        try {
+          await topUpSol(missing);
+        } catch (e) {
+          throw new Error(
+            `Automatic SOL top-up failed: ${errorMessage(e)}`
+          );
+        } finally {
+          setAction(null);
+        }
+        current = await fetchAccountSetup({ wallet, market });
+        setSetup(current);
+        if (!current.solOk) {
+          throw new Error("Still not enough SOL after the automatic top-up");
+        }
       }
 
       // 2 · ATA
@@ -314,32 +344,7 @@ export function useTradingAccount(
       setRun({ active: false, step, error: { step, message } });
       throw e instanceof Error ? e : new Error(message);
     }
-  }, [wallet, market, createAtas, requestTokens, openVault]);
-
-  /** 本地验证节点 / devnet 上的一键领水，仅用于开发调试 */
-  const airdrop = useCallback(
-    async (sol = 1) => {
-      if (!wallet) return;
-      setAction("airdrop");
-      setError(null);
-      try {
-        const connection = new Connection(rpcUrl(), "confirmed");
-        const signature = await connection.requestAirdrop(
-          new PublicKey(wallet),
-          Math.round(sol * 1e9)
-        );
-        await connection.confirmTransaction(signature, "confirmed");
-        await check({ silent: true });
-        return signature;
-      } catch (e) {
-        setError(errorMessage(e));
-        throw e instanceof Error ? e : new Error(errorMessage(e));
-      } finally {
-        setAction(null);
-      }
-    },
-    [wallet, check]
-  );
+  }, [wallet, market, createAtas, requestTokens, openVault, topUpSol]);
 
   return {
     state,
@@ -351,6 +356,5 @@ export function useTradingAccount(
     busy: action !== null || run.active,
     check,
     setupAll,
-    airdrop,
   };
 }

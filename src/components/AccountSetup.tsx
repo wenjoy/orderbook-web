@@ -6,7 +6,7 @@ import type {
 import type { AccountSetup as Setup } from "../lib/chainStatus";
 import type { MarketPair } from "../markets";
 import { formatUnits } from "../lib/amount";
-import { FAUCET_AMOUNTS, rpcUrl } from "../api";
+import { FAUCET_AMOUNTS } from "../api";
 
 type Props = {
   state: AccountState;
@@ -16,7 +16,6 @@ type Props = {
   run: SetupRun;
   market: MarketPair;
   onSetupAll: () => void;
-  onAirdrop: () => void;
   onRefresh: () => void;
 };
 
@@ -132,8 +131,8 @@ function AtaRow({
 }
 
 /**
- * 开户引导：4 个步骤只作为进度展示，用户点一次「Set up trading account」
- * 就会按顺序跑完剩余步骤，进度实时反映在步骤卡片上。
+ * Account setup guide: the 4 steps are a progress view, and one click on
+ * "Set up trading account" runs every remaining step in order.
  */
 export function AccountSetup({
   state,
@@ -143,7 +142,6 @@ export function AccountSetup({
   run,
   market,
   onSetupAll,
-  onAirdrop,
   onRefresh,
 }: Props) {
   if (state === "idle" || state === "checking") {
@@ -191,7 +189,7 @@ export function AccountSetup({
     if (run.error?.step === n) return "failed";
     if (run.active && run.step === n) return "running";
     if (isDone(n)) return "done";
-    if (run.active) return "locked"; // 排队中
+    if (run.active) return "locked"; // queued
     if (n === 1) return "active";
     if (n === 2) return setup.solOk ? "active" : "locked";
     if (n === 3) return setup.solOk && setup.atasOk ? "active" : "locked";
@@ -202,9 +200,6 @@ export function AccountSetup({
   const quoteBalance = formatUnits(setup.quoteAta.amount ?? 0n, setup.quoteDecimals);
   const baseZero = (setup.baseAta.amount ?? 0n) === 0n;
   const quoteZero = (setup.quoteAta.amount ?? 0n) === 0n;
-
-  // 仅本地验证节点 / devnet 提供一键领水
-  const canAirdrop = /127\.0\.0\.1|localhost|devnet/.test(rpcUrl());
 
   const doneCount = [1, 2, 3, 4].filter(isDone).length;
   const ctaLabel = run.active
@@ -220,11 +215,11 @@ export function AccountSetup({
           Open your trading account
         </h2>
         <p className="mx-auto mt-1 max-w-sm text-sm text-gray-400">
-          {market.baseSymbol} / {market.quoteSymbol} · 点一次即可完成以下 4 步。
+          {market.baseSymbol} / {market.quoteSymbol} · One click runs all 4 steps below.
         </p>
       </div>
 
-      {/* 总进度 */}
+      {/* Overall progress */}
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-1">
           {[1, 2, 3, 4].map((n) => {
@@ -248,7 +243,7 @@ export function AccountSetup({
         <span className="text-[10px] text-gray-500">{doneCount}/4 done</span>
       </div>
 
-      {/* 一键执行 */}
+      {/* One-click action */}
       <div className="space-y-2">
         <button
           type="button"
@@ -259,14 +254,14 @@ export function AccountSetup({
           {ctaLabel}
         </button>
         <p className="text-center text-[10px] text-gray-500">
-          自动按顺序执行：检查 SOL → 创建 ATA → 领取代币 → 开户；
-          已完成的步骤会跳过，重复点击是安全的。
+          Runs in order: check SOL → create ATAs → fund tokens → open account.
+          Completed steps are skipped, so retrying is safe.
         </p>
       </div>
 
       {/* 1 · SOL */}
       <Step index={1} title="Fund your wallet with SOL" status={statusOf(1)}>
-        <p>SOL 用于支付账户租金（ATA + 交易账户）和网络手续费。</p>
+        <p>SOL pays for account rent (token accounts + trading account) and network fees.</p>
         <div className="space-y-1 rounded-md bg-surface-2/60 px-3 py-2 font-mono text-[11px]">
           <div className="flex justify-between">
             <span className="text-gray-500">Wallet SOL</span>
@@ -282,21 +277,14 @@ export function AccountSetup({
           </div>
         </div>
         {!setup.solOk && (
-          <p className="text-[11px] text-ask">
-            还差 ≈ {sol(setup.requiredLamports - setup.solLamports)} SOL，
-            转入后可再次点击上方按钮。
+          <p className="text-[11px] text-gray-500">
+            Short by ≈ {sol(setup.requiredLamports - setup.solLamports)} SOL.
+            It will be topped up automatically when you continue.
           </p>
         )}
-        {canAirdrop && !setup.solOk && !run.active && (
-          <button
-            type="button"
-            className="btn-ghost text-xs"
-            disabled={busy}
-            onClick={onAirdrop}
-          >
-            {action === "airdrop" ? "Requesting…" : "Request 1 SOL"}
-          </button>
-        )}
+        <p className="text-[10px] text-gray-600">
+          The required minimum is topped up automatically (local validator / devnet).
+        </p>
         {run.error?.step === 1 && (
           <p className="text-[11px] text-ask">{run.error.message}</p>
         )}
@@ -306,7 +294,7 @@ export function AccountSetup({
       <Step index={2} title="Create token accounts" status={statusOf(2)}>
         {!mintsOk && (
           <p className="text-[11px] text-ask">
-            该交易对的 mint 尚未在链上创建，请先在 Admin 页初始化市场。
+            This pair's mints are not on chain yet. Initialize the market first.
           </p>
         )}
         <div className="space-y-1.5">
@@ -328,9 +316,11 @@ export function AccountSetup({
         )}
       </Step>
 
-      {/* 3 · 代币余额 */}
+      {/* 3 · Token balances */}
       <Step index={3} title="Fund token accounts" status={statusOf(3)}>
-        <p>两个 ATA 的余额都不能为零，否则开户后也无法充值、下单。</p>
+        <p>
+          Both ATAs must have a non-zero balance, otherwise you cannot deposit or trade.
+        </p>
         <div className="space-y-1 rounded-md bg-surface-2/60 px-3 py-2 font-mono text-[11px]">
           <div className="flex justify-between">
             <span className="text-gray-500">{market.baseSymbol}</span>
@@ -346,8 +336,8 @@ export function AccountSetup({
           </div>
         </div>
         <p className="text-[10px] text-gray-500">
-          每次领取 {FAUCET_AMOUNTS.base} {market.baseSymbol} +{" "}
-          {FAUCET_AMOUNTS.quote} {market.quoteSymbol}，由后端水龙头发放。
+          Each request mints {FAUCET_AMOUNTS.base} {market.baseSymbol} +{" "}
+          {FAUCET_AMOUNTS.quote} {market.quoteSymbol} from the backend faucet.
         </p>
         {run.error?.step === 3 && (
           <p className="text-[11px] text-ask">{run.error.message}</p>
@@ -357,7 +347,8 @@ export function AccountSetup({
       {/* 4 · UserVault */}
       <Step index={4} title="Open trading account" status={statusOf(4)}>
         <p>
-          最后一步：在你的钱包与当前交易对下创建 User Vault，之后才能充值、下单和结算。
+          The final step creates your User Vault for this pair. You need it to deposit,
+          trade and settle.
         </p>
         <p className="font-mono text-[10px] text-gray-600 break-all">
           vault PDA: {setup.vaultAddress || "—"}
