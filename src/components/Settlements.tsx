@@ -37,7 +37,7 @@ export function Settlements({ jobs, baseDecimals, quoteDecimals }: Props) {
               </span>
             </div>
             <div className="mt-0.5 text-gray-300">
-              {formatQty(j.trade.quantity, baseDecimals)} @{" "}
+              {formatQty(j.trade.quantity)} @{" "}
               {formatPrice(j.trade.price, baseDecimals, quoteDecimals)}{" "}
               <span className="text-gray-600">
                 {j.trade.taker_user} ← {j.trade.maker_user}

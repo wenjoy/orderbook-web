@@ -2,45 +2,41 @@ import { useState } from "react";
 import type { Side } from "../types";
 import { parsePrice, parseQty, priceDecimals } from "../lib/amount";
 
-/** 余额比较的浮点容差 */
-const EPS = 1e-9;
-
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 
-const fmtNum = (n: number) =>
-  n.toLocaleString("en-US", { maximumFractionDigits: 6 });
+const fmtBig = (n: bigint) => n.toLocaleString("en-US");
 
-/** 按方向校验「所需数量」是否超过交易账户余额（人类单位） */
+/** 按方向校验余额：全部用链上最小单位直接比较（与结算完全一致） */
 function checkBalance(
   side: Side,
-  price: number,
-  quantity: number,
-  maxBase: number | null,
-  maxQuote: number | null
+  priceRaw: bigint,
+  qtyRaw: bigint,
+  maxBaseRaw: bigint,
+  maxQuoteRaw: bigint
 ): string | null {
-  if (side === "Bid" && maxQuote != null) {
+  if (side === "Bid") {
     // 买单花的是 quote：price × quantity
-    const cost = price * quantity;
-    if (cost > maxQuote + EPS) {
-      return `Insufficient quote balance: need ${fmtNum(cost)}, available ${fmtNum(maxQuote)}`;
+    const cost = priceRaw * qtyRaw;
+    if (cost > maxQuoteRaw) {
+      return `Insufficient quote balance: need ${fmtBig(cost)}, available ${fmtBig(maxQuoteRaw)}`;
     }
   }
-  if (side === "Ask" && maxBase != null) {
+  if (side === "Ask") {
     // 卖单花的是 base：quantity
-    if (quantity > maxBase + EPS) {
-      return `Insufficient base balance: need ${fmtNum(quantity)}, available ${fmtNum(maxBase)}`;
+    if (qtyRaw > maxBaseRaw) {
+      return `Insufficient base balance: need ${fmtBig(qtyRaw)}, available ${fmtBig(maxBaseRaw)}`;
     }
   }
   return null;
 }
 
 /**
- * 下单表单：输入是人类单位，提交前换算成链上 u64 最小单位。
+ * 下单表单。
  *
- *   quantity_raw = qty × 10^baseDecimals
- *   price_raw    = price × 10^(quoteDecimals − baseDecimals)
+ *   quantity —— 纯整数（u64），原样提交，不做 decimal 换算
+ *   price    —— 人类价格，按 10^(quoteDecimals − baseDecimals) 换算成链上 u64
  *
- * 链上结算按 quote = price × quantity 计算，所以价格精度受两个 mint 的精度差约束。
+ * 链上结算按 quote = price × quantity 计算，余额校验也直接用最小单位比较。
  */
 export function OrderFormControlled({
   user,
@@ -52,8 +48,8 @@ export function OrderFormControlled({
   onSubmit,
   baseDecimals,
   quoteDecimals,
-  maxBase,
-  maxQuote,
+  maxBaseRaw,
+  maxQuoteRaw,
 }: {
   user: string;
   price: string;
@@ -65,9 +61,9 @@ export function OrderFormControlled({
   /** base / quote mint 精度；null 表示还未拿到，此时禁用提交 */
   baseDecimals: number | null;
   quoteDecimals: number | null;
-  /** 交易账户可用余额（人类单位）；null 表示未知，跳过校验 */
-  maxBase: number | null;
-  maxQuote: number | null;
+  /** 交易账户可用余额（最小单位） */
+  maxBaseRaw: bigint;
+  maxQuoteRaw: bigint;
 }) {
   const [qty, setQty] = useState("1");
   const [error, setError] = useState<string | null>(null);
@@ -79,15 +75,8 @@ export function OrderFormControlled({
   const priceRaw = decimalsKnown
     ? parsePrice(price, baseDecimals, quoteDecimals)
     : null;
-  const qtyRaw = baseDecimals != null ? parseQty(qty, baseDecimals) : null;
+  const qtyRaw = parseQty(qty);
 
-  const humanPrice = Number(price);
-  const humanQty = Number(qty);
-  const positive =
-    Number.isFinite(humanPrice) &&
-    humanPrice > 0 &&
-    Number.isFinite(humanQty) &&
-    humanQty > 0;
   const withinSafe =
     priceRaw != null &&
     qtyRaw != null &&
@@ -108,17 +97,15 @@ export function OrderFormControlled({
       if (priceRaw <= 0n) return "Price must be greater than 0";
     }
     if (qty.trim()) {
-      if (qtyRaw == null) {
-        return `Quantity must be a number with at most ${baseDecimals} decimals`;
-      }
+      if (qtyRaw == null) return "Quantity must be a whole number";
       if (qtyRaw <= 0n) return "Quantity must be greater than 0";
     }
     return null;
   })();
 
   const balanceError =
-    positive && withinSafe
-      ? checkBalance(side, humanPrice, humanQty, maxBase, maxQuote)
+    withinSafe && priceRaw != null && qtyRaw != null
+      ? checkBalance(side, priceRaw, qtyRaw, maxBaseRaw, maxQuoteRaw)
       : null;
 
   const submit = async () => {
@@ -134,7 +121,7 @@ export function OrderFormControlled({
     if (!priceRaw || !qtyRaw || priceRaw <= 0n || qtyRaw <= 0n) {
       setError(
         inputError ??
-          "Price and quantity must be positive numbers within the market precision"
+        "Price and quantity must be positive numbers within the market precision"
       );
       return;
     }
@@ -142,7 +129,7 @@ export function OrderFormControlled({
       setError("Order size is too large");
       return;
     }
-    const limited = checkBalance(side, humanPrice, humanQty, maxBase, maxQuote);
+    const limited = checkBalance(side, priceRaw, qtyRaw, maxBaseRaw, maxQuoteRaw);
     if (limited) {
       setError(limited);
       return;
@@ -160,13 +147,8 @@ export function OrderFormControlled({
   };
 
   const available =
-    side === "Bid"
-      ? maxQuote == null
-        ? "—"
-        : fmtNum(maxQuote)
-      : maxBase == null
-        ? "—"
-        : fmtNum(maxBase);
+    side === "Bid" ? fmtBig(maxQuoteRaw) : fmtBig(maxBaseRaw);
+  const cost = priceRaw != null && qtyRaw != null ? priceRaw * qtyRaw : null;
 
   return (
     <div className="panel">
@@ -234,7 +216,6 @@ export function OrderFormControlled({
             value={qty}
             type="number"
             min="0"
-            step={baseDecimals != null ? 1 / 10 ** baseDecimals : "any"}
             onChange={(e) => setQty(e.target.value)}
           />
         </div>
@@ -242,10 +223,9 @@ export function OrderFormControlled({
         <p className="text-[10px] text-gray-500">
           Available {side === "Bid" ? "quote" : "base"}:{" "}
           <span className="font-mono">{available}</span>
-          {positive && side === "Bid" && (
+          {side === "Bid" && cost != null && cost > 0n && (
             <>
-              {" "}· cost{" "}
-              <span className="font-mono">{fmtNum(humanPrice * humanQty)}</span>
+              {" "}· cost <span className="font-mono">{fmtBig(cost)}</span>
             </>
           )}
         </p>

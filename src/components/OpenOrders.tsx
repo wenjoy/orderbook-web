@@ -39,7 +39,7 @@ export function OpenOrders({
                 {o.side === "Bid" ? "BUY" : "SELL"}
               </span>{" "}
               <span className="text-gray-300">
-                {formatQty(o.remaining, baseDecimals)} @{" "}
+                {formatQty(o.remaining)} @{" "}
                 {formatPrice(o.price, baseDecimals, quoteDecimals)}
               </span>
               <span className="ml-2 text-gray-600">#{o.id}</span>

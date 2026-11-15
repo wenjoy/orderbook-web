@@ -34,7 +34,7 @@ export function Trades({ trades, baseDecimals, quoteDecimals }: Props) {
                 {formatPrice(t.price, baseDecimals, quoteDecimals)}
               </span>
               <span className="text-right text-gray-300">
-                {formatQty(t.quantity, baseDecimals)}
+                {formatQty(t.quantity)}
               </span>
               <span className={`text-right ${buy ? "text-bid" : "text-ask"}`}>
                 {buy ? "buy" : "sell"}
