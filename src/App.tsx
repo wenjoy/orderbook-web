@@ -150,21 +150,11 @@ export default function App() {
 
   const wsConnected = useWebSocket(onWs);
 
-  const handleCreateAtas = async () => {
+  /** 一键开户：按 SOL → ATA → 代币 → 开户 顺序跑完剩余步骤 */
+  const handleSetupAll = async () => {
     try {
-      const signature = await account.createAtas();
-      if (signature) showToast(`Token accounts created: ${signature.slice(0, 12)}…`);
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleRequestTokens = async () => {
-    try {
-      const signature = await account.requestTokens();
-      showToast(
-        signature ? `Tokens received: ${signature.slice(0, 12)}…` : "Faucet request sent"
-      );
+      await account.setupAll();
+      showToast("Trading account ready");
     } catch (e) {
       showToast(e instanceof Error ? e.message : String(e));
     }
@@ -174,15 +164,6 @@ export default function App() {
     try {
       const signature = await account.airdrop(1);
       if (signature) showToast(`Airdrop: ${signature.slice(0, 12)}…`);
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleOpenVault = async () => {
-    try {
-      const signature = await account.open();
-      if (signature) showToast(`Account opened: ${signature.slice(0, 12)}…`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : String(e));
     }
@@ -349,14 +330,13 @@ export default function App() {
             setup={account.setup}
             error={account.error}
             action={account.action}
+            run={account.run}
             market={market}
             onRefresh={() =>
               // 已进入引导页时静默刷新，避免整页 loading 闪一下
               void account.check({ silent: account.state === "missing" })
             }
-            onCreateAtas={() => void handleCreateAtas()}
-            onRequestTokens={() => void handleRequestTokens()}
-            onOpen={() => void handleOpenVault()}
+            onSetupAll={() => void handleSetupAll()}
             onAirdrop={() => void handleAirdrop()}
           />
         ) : (
