@@ -1,69 +1,57 @@
-# Orderbook App (Phase 5)
+# Orderbook Trading UI
 
-React + TypeScript + Vite + Tailwind 交易界面，对接 `api-server`。
+React + TypeScript + Vite front end for the CLOB demo: off-chain matching,
+on-chain settlement.
 
-## 功能
+## Features
 
-- 实时 Orderbook（WebSocket）+ 点击价格填单
-- 限价买卖下单 / 取消挂单
-- 最近成交
-- 结算任务列表（Phase 4）
-- 简易深度条
-- 用户字符串 / Phantom 连接（写入 pubkey 作为 `user`）
+- Live order book, trades (with timestamps), depth bars and settlements over WebSocket
+- Limit orders with client-side balance validation
+- One-click account setup
 
-## 启动
-
-先启动后端：
+## Quick start
 
 ```bash
-cd api-server && cargo run
-```
-
-再启动前端：
-
-```bash
-cd app
 npm install
-npm run dev
+npm run dev     # http://localhost:5173
 ```
 
-浏览器打开 http://localhost:5173  
+Vite proxies `/api` and `/ws` to `http://127.0.0.1:8080`.
 
-Vite 已把 `/api` 和 `/ws` 代理到 `http://127.0.0.1:3000`。
+## Configuration
 
-### 可选环境变量
+`.env.local` (see `env.example`):
 
-```bash
-VITE_API_URL=http://127.0.0.1:3000   # 不走代理时直连
-VITE_WS_URL=ws://127.0.0.1:3000/ws
-```
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VITE_API_URL` | `/api` | Backend API prefix |
+| `VITE_WS_URL` | current host + `/ws` | WebSocket URL |
+| `VITE_SOLANA_RPC` | `http://127.0.0.1:8899` | Solana RPC endpoint |
+| `VITE_SETTLEMENT_PROGRAM_ID` | placeholder | Settlement program id |
+| `VITE_FAUCET_URL` | `${VITE_API_URL}/onchain/request_token_airdrop` | Token faucet endpoint |
 
-## 演示路径
+## Opening a trading account
 
-1. 顶部用户填 `bob`，Sell 10 @ 100  
-2. 用户改成 `alice`，Buy 5 @ 100  
-3. 右侧出现 Trade + Settlement（dry_run → simulated）  
-4. WebSocket 实时刷新深度  
+The page shows four steps; one **Set up trading account** click runs the remaining ones
+in order and updates progress live. Completed steps are skipped, so retrying is safe.
 
-## 目录
+1. **SOL** — enough for account rent and fees. If short, the missing amount is requested
+   automatically via `requestAirdrop` (local validator / devnet only).
+2. **Token accounts** — creates the missing base/quote ATAs in one signature.
+3. **Token balances** — calls the faucet twice (base + quote, 100 / 1000); both must be
+   non-zero before trading.
+4. **Trading account** — `InitializeVault` creates the user vault for the market.
+
+## Structure
 
 ```
 src/
-  api.ts              # REST 客户端
-  types.ts
-  hooks/useWebSocket.ts
-  components/
-    Header.tsx
-    Orderbook.tsx
-    OrderForm.tsx
-    Trades.tsx
-    OpenOrders.tsx
-    Settlements.tsx
-    DepthChart.tsx
-  App.tsx
+  api.ts            REST client and faucet request
+  markets.ts        Market list from GET /markets
+  types.ts          Shared API types (raw u64 fields documented)
+  components/       Header, Orderbook, OrderForm, Trades, OpenOrders,
+                    Settlements, DepthChart, HoldingOverview, AccountSetup,
+  hooks/            useWallet, useBalances, useTradingAccount, useWebSocket
+  lib/              amount (unit conversion), settlementIx, chainStatus,
+                    decodeAccounts, walletSend, time
 ```
-
-## 说明
-
-- 当前 API 用字符串 `user` 标识；Phantom 仅用于填入 pubkey，完整签名流在 queue/hot_wallet 模式与 Phase 4 热钱包接线后扩展。
-- Vault 链上余额读取可在 Program 部署后用 `getAccountInfo` 补充。
