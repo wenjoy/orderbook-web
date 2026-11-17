@@ -245,9 +245,12 @@ export function wsUrl(): string {
 }
 
 export function rpcUrl(): string {
-  return (
-    (import.meta.env.VITE_SOLANA_RPC as string | undefined) ??
-    "http://127.0.0.1:8899"
-  );
+  const url = (import.meta.env.VITE_SOLANA_RPC as string | undefined)?.trim();
+  if (!url) {
+    throw new Error(
+      "VITE_SOLANA_RPC 未配置：请在 .env.local 中设置 Solana RPC 地址"
+    );
+  }
+  return url;
 }
 

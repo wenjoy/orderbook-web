@@ -16,7 +16,8 @@ npm install
 npm run dev     # http://localhost:5173
 ```
 
-Vite proxies `/api` and `/ws` to `http://127.0.0.1:8080`.
+Vite proxies `/api` and `/ws` to the backend at `VITE_BACKEND_URL`
+(default `http://127.0.0.1:8080`).
 
 ## Configuration
 
@@ -24,9 +25,10 @@ Vite proxies `/api` and `/ws` to `http://127.0.0.1:8080`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `VITE_BACKEND_URL` | `http://127.0.0.1:8080` | Dev proxy target for `/api` and `/ws` |
 | `VITE_API_URL` | `/api` | Backend API prefix |
 | `VITE_WS_URL` | current host + `/ws` | WebSocket URL |
-| `VITE_SOLANA_RPC` | `http://127.0.0.1:8899` | Solana RPC endpoint |
+| `VITE_SOLANA_RPC` | — (required) | Solana RPC endpoint |
 | `VITE_SETTLEMENT_PROGRAM_ID` | placeholder | Settlement program id |
 | `VITE_FAUCET_URL` | `${VITE_API_URL}/onchain/request_token_airdrop` | Token faucet endpoint |
 
