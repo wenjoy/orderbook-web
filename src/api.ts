@@ -245,10 +245,17 @@ export function wsUrl(): string {
 }
 
 export function rpcUrl(): string {
-  const url = (import.meta.env.VITE_SOLANA_RPC as string | undefined)?.trim();
-  if (!url) {
+  const raw = (import.meta.env.VITE_SOLANA_RPC as string | undefined)?.trim();
+  if (!raw) {
     throw new Error(
-      "VITE_SOLANA_RPC 未配置：请在 .env.local 中设置 Solana RPC 地址"
+      "VITE_SOLANA_RPC 未配置：推荐设置为 /rpc，由后端代理 RPC 请求，避免 api-key 下发到浏览器"
+    );
+  }
+  // web3.js 需要绝对地址：相对路径按当前页面 origin 解析，交给 vite / nginx 代理。
+  const url = raw.startsWith("/") ? `${window.location.origin}${raw}` : raw;
+  if (import.meta.env.DEV && /[?&]api[-_]?key=/i.test(url)) {
+    console.warn(
+      "[rpc] VITE_SOLANA_RPC 里带有 api-key，会被打包进前端代码并公开泄露；请改用 /rpc 走后端代理。"
     );
   }
   return url;

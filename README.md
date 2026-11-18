@@ -28,7 +28,7 @@ Vite proxies `/api` and `/ws` to the backend at `VITE_BACKEND_URL`
 | `VITE_BACKEND_URL` | `http://127.0.0.1:8080` | Dev proxy target for `/api` and `/ws` |
 | `VITE_API_URL` | `/api` | Backend API prefix |
 | `VITE_WS_URL` | current host + `/ws` | WebSocket URL |
-| `VITE_SOLANA_RPC` | — (required) | Solana RPC endpoint |
+| `VITE_SOLANA_RPC` | — (required) | Solana RPC endpoint; use `/rpc` so the backend injects the api-key |
 | `VITE_SETTLEMENT_PROGRAM_ID` | placeholder | Settlement program id |
 | `VITE_FAUCET_URL` | `${VITE_API_URL}/onchain/request_token_airdrop` | Token faucet endpoint |
 
