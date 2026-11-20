@@ -13,7 +13,7 @@ function assertNoSecretInClientEnv(env: Record<string, string>): void {
   if (leaked.length > 0) {
     throw new Error(
       `[vite] 以下 VITE_* 变量包含 api-key，会被打包进前端代码：${leaked.join(", ")}\n` +
-        "请改为走同源代理（VITE_SOLANA_RPC=/rpc），api-key 只保留在后端环境变量里。",
+      "请改为走同源代理（VITE_SOLANA_RPC=/rpc），api-key 只保留在后端环境变量里。",
     );
   }
 }
@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      allowedHosts: ['wenjoy.phone-home.org'],
       port: 5173,
       proxy: {
         "/api": {
